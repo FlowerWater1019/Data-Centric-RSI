@@ -1,0 +1,7 @@
+{
+  "dataset": "google-research/mbpp",
+  "revision": "f82046ba5aabbbb427dbfd38a254d26bff08b533",
+  "url": "https://raw.githubusercontent.com/google-research/google-research/f82046ba5aabbbb427dbfd38a254d26bff08b533/mbpp/mbpp.jsonl",
+  "license": "CC-BY-4.0",
+  "sha256": "ccf64ceae9c5403bf50a044cb6d505bfd2a2963ee58338ba268fd65beab92a9f"
+}

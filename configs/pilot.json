@@ -1,0 +1,12 @@
+{
+  "schema_version": "pilot-1",
+  "expected_device_name": "NVIDIA RTX 5880 Ada Generation",
+  "source": "../examples/pilot_messages.jsonl",
+  "contract_template": "smoke.json",
+  "seed": 17,
+  "examples_per_arm": 2,
+  "precision": "bf16",
+  "learning_rate": 0.00005,
+  "lora_rank": 4,
+  "max_sequence_length": 512
+}

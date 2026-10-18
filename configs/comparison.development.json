@@ -1,0 +1,25 @@
+{
+  "schema_version": "real-comparison-1",
+  "purpose": "development",
+  "seed": 17,
+  "selection": {
+    "packing_rule": "exact_ranked_v1",
+    "supervised_token_budget": 512,
+    "allowed_shortfall": 0,
+    "min_skill_shares": {}
+  },
+  "training": {
+    "backend": "hf_lora",
+    "world_size": 1,
+    "precision": "bf16",
+    "learning_rate": 0.0001,
+    "lora_rank": 4,
+    "max_sequence_length": 1024,
+    "per_device_batch_size": 1,
+    "gradient_accumulation_steps": 1,
+    "optimizer_state": "fresh_per_attempt",
+    "scheduler_state": "fresh_per_attempt"
+  },
+  "scoring_token_budget": 100000,
+  "expected_device_name": "NVIDIA RTX 5880 Ada Generation"
+}

@@ -1,0 +1,93 @@
+{
+  "schema_version": "1.0",
+  "contract_id": "smoke_v1",
+  "purpose": "smoke",
+  "seed": 17,
+  "model": {
+    "checkpoint_id": "accepted_demo_00",
+    "base_revision": "base_demo_v1",
+    "adapter_revision": "adapter_demo_00",
+    "tokenizer_revision": "character_fixture_v1",
+    "template_revision": "fixture_template_v1"
+  },
+  "skills": [
+    "failure_recovery",
+    "regression_check"
+  ],
+  "selection": {
+    "supervised_token_budget": 8,
+    "allowed_shortfall": 0,
+    "min_skill_shares": {
+      "regression_check": 0.5
+    }
+  },
+  "scoring": {
+    "rule_version": "masked_mean_demo_v1",
+    "reference_version": "reference_demo_v1",
+    "cdf_version": "cdf_accepted_demo_00"
+  },
+  "fixed_strategy": {
+    "strategy_id": "fixed_demo_v1",
+    "nll": {
+      "support": [
+        0.2,
+        0.95
+      ],
+      "preferred": [
+        0.45,
+        0.75
+      ]
+    },
+    "entropy": {
+      "support": [
+        0.1,
+        0.9
+      ],
+      "preferred": [
+        0.3,
+        0.65
+      ]
+    },
+    "weights": {
+      "nll": 0.3,
+      "entropy": 0.15,
+      "skill": 0.55
+    },
+    "skill_preferences": {
+      "failure_recovery": 1,
+      "regression_check": 0.7
+    }
+  },
+  "hardware": {
+    "accelerator": "H200",
+    "gpu_count": 8,
+    "memory_gb_per_gpu": 144,
+    "evidence": "user_reported"
+  },
+  "training": {
+    "backend": "unimplemented",
+    "world_size": 8,
+    "precision": "bf16",
+    "learning_rate": null,
+    "lora_rank": null,
+    "max_sequence_length": null,
+    "per_device_batch_size": null,
+    "gradient_accumulation_steps": null,
+    "optimizer_state": "fresh_per_attempt",
+    "scheduler_state": "fresh_per_attempt"
+  },
+  "acceptance": {
+    "primary_metric": null,
+    "minimum_gain": null,
+    "retention_tolerance": null,
+    "sample_size": null,
+    "statistical_rule": null,
+    "max_retests": null
+  },
+  "budgets": {
+    "training_tokens": 32,
+    "scoring_tokens": 1000,
+    "evaluation_calls": 100
+  },
+  "allow_feedback_overlap": false
+}

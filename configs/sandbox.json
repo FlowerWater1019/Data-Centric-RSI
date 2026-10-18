@@ -1,0 +1,8 @@
+{
+  "schema_version": "sandbox-1",
+  "backend": "bubblewrap_seccomp_v1",
+  "wall_seconds": 5,
+  "cpu_seconds": 2,
+  "memory_mb": 256,
+  "output_bytes": 65536
+}

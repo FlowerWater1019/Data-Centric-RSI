@@ -1,0 +1,29 @@
+{
+  "schema_version": "coding-tasks-1",
+  "purpose": "engineering_validation",
+  "role": "feedback_execution",
+  "executor": "bounded_integer_expression_v1",
+  "max_new_tokens": 128,
+  "tasks": [
+    {
+      "task_id": "exec_abs_gap", "group": "target", "split_group": "exec_abs_gap", "duplicate_group": "exec_abs_gap",
+      "prompt": "Return the absolute difference between the integers x and y.",
+      "tests": [{"arguments": [5, 9], "expected": 4}, {"arguments": [-3, 4], "expected": 7}, {"arguments": [2, 2], "expected": 0}]
+    },
+    {
+      "task_id": "exec_sum_squares", "group": "target", "split_group": "exec_sum_squares", "duplicate_group": "exec_sum_squares",
+      "prompt": "Return the sum of the square of x and the square of y. Use multiplication for each square.",
+      "tests": [{"arguments": [3, 4], "expected": 25}, {"arguments": [-2, 5], "expected": 29}, {"arguments": [0, 0], "expected": 0}]
+    },
+    {
+      "task_id": "exec_larger", "group": "retention", "split_group": "exec_larger", "duplicate_group": "exec_larger",
+      "prompt": "Return the larger of the two integers x and y.",
+      "tests": [{"arguments": [1, 7], "expected": 7}, {"arguments": [-2, -4], "expected": -2}, {"arguments": [5, 5], "expected": 5}]
+    },
+    {
+      "task_id": "exec_twice_small", "group": "retention", "split_group": "exec_twice_small", "duplicate_group": "exec_twice_small",
+      "prompt": "Return twice the smaller of the two integers x and y.",
+      "tests": [{"arguments": [3, 7], "expected": 6}, {"arguments": [-4, 1], "expected": -8}, {"arguments": [0, 0], "expected": 0}]
+    }
+  ]
+}

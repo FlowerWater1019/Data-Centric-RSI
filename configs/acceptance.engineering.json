@@ -1,0 +1,9 @@
+{
+  "schema_version": "acceptance-1",
+  "statistical_rule": "paired_hoeffding_two_groups_v1",
+  "minimum_gain": 0.01,
+  "retention_tolerance": 0.05,
+  "minimum_tasks_per_group": 16,
+  "alpha": 0.05,
+  "max_retests": 0
+}
