@@ -123,6 +123,45 @@ class SelectionProcessTests(unittest.TestCase):
             self.assertFalse(nested.exists())
             self.assertEqual(verify_manifest(fixture), identity)
 
+    def test_demo_reports_rankings_with_excluded_candidates(self) -> None:
+        for phase in ("before", "after"):
+            with self.subTest(phase=phase), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                fixture, demo = root / "fixture", root / "demo"
+                self.call(["make-selection-fixture", "--output", str(fixture)])
+                name = "policy.json" if phase == "before" else "dispatch.fixture.json"
+                path = fixture / name
+                value = read_json(path)
+                if phase == "before":
+                    value["eligibility"]["excluded_data_ids"] = ["sample_002"]
+                else:
+                    value["policy_update"]["add"] = {"eligibility.excluded_data_ids": ["sample_002"]}
+                path.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
+                # 修改合成输入后，建立新的完整 fixture 清单。
+                (fixture / "manifest.json").unlink()
+                finish_manifest(fixture, "fixture")
+                identity = verify_manifest(fixture)
+                result = self.call(["selection-demo", "--fixture", str(fixture), "--output", str(demo)])
+                for stage in ("before", "after"):
+                    report = read_json(demo / stage / "selection_report.json")
+                    excluded = next(row for row in report["candidates"] if row["data_id"] == "sample_002")
+                    ranking = result[stage + "_ranking"]
+                    if phase == "before" or stage == "after":
+                        self.assertIsNone(excluded["ranking_position"])
+                        self.assertFalse(excluded["eligibility_pass"])
+                        self.assertNotIn("sample_002", ranking)
+                        self.assertNotIn("sample_002", result[stage + "_ids"])
+                        self.assertEqual(len(ranking), 9)
+                    else:
+                        self.assertIn("sample_002", ranking)
+                        self.assertEqual(len(ranking), 10)
+                    ranked_rows = sorted((row for row in report["candidates"] if row["ranking_position"] is not None),
+                                         key=lambda row: row["ranking_position"])
+                    self.assertEqual(ranking, [row["data_id"] for row in ranked_rows])
+                    self.assertEqual(report["counts"]["selected"], 4)
+                verify_manifest(demo)
+                self.assertEqual(verify_manifest(fixture), identity)
+
     def test_publication_failure_locking_and_manifest_integrity(self) -> None:
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

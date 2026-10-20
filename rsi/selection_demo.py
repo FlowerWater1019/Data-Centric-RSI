@@ -112,6 +112,7 @@ def fixture_values(seed: int = 42, skills: tuple[str, ...] = ("code_generation",
         "execution": {"packing_rule": "exact_ranked_v1", "quota_handling": "postcheck_fail", "tie_breaker": "data_id_ascending", "seed": seed},
         "description": "合成演示策略，不表达真实技能结论。"}
     target = "regression_check" if "regression_check" in skills else skills[-1]
+    target_present = any(target in record.skills for record in records if record.role == "candidate")
     feedback = {"schema_version": "feedback-fixture-v1", "feedback_id": "feedback_001", "round_id": "round_001",
         "batch_id": "unbound_fixture_batch", "parent_checkpoint_id": contract.model.checkpoint_id,
         "candidate_checkpoint_id": "candidate_fixture_001", "source": "synthetic_fixture", "data_role": "feedback",
@@ -137,8 +138,10 @@ def fixture_values(seed: int = 42, skills: tuple[str, ...] = ("code_generation",
         "natural_language_dispatch": "提高指定技能的偏好和最低覆盖。保留父模型。",
         "policy_update": {"base_policy_id": policy["policy_id"], "proposed_policy_id": "policy_002",
             "set": {"scoring.skill_preferences." + target: 1.0,
-                    "batch_constraints.min_skill_token_shares." + target: 0.25}, "add": {}, "remove": {}},
+                    "batch_constraints.min_skill_token_shares." + target: 0.25 if target_present else 0.0}, "add": {}, "remove": {}},
         "next_action": "select_next_batch"}
+    if not target_present:
+        dispatch["natural_language_dispatch"] = "当前合成候选不含目标技能。仅提高该技能偏好，最低覆盖设为 0。"
     return {"config": config, "data": data, "labels": labels, "ontology": ontology,
             "policy": policy, "feedback": feedback, "dispatch": dispatch,
             "score_fixture": {"source": "synthetic_fixture", "metrics": {k: {"nll": v.nll, "entropy": v.entropy} for k, v in metrics.items()}}}
@@ -183,26 +186,37 @@ def save_selection(root: Path, result: SelectionResult) -> None:
     write_json(root / "batch.json", result.batch.to_dict())
 
 
+def ranking_ids(result: SelectionResult) -> list[str]:
+    """只返回实际参与排名的候选。被排除候选保留在完整报告中。"""
+    candidates = (row for row in result.to_dict()["candidates"] if row["ranking_position"] is not None)
+    return [row["data_id"] for row in sorted(candidates, key=lambda row: row["ranking_position"])]
+
+
 def run_demo(fixture: str | Path, output: str | Path) -> dict[str, Any]:
     """绑定真实批次身份并落盘，再执行纯调度和第二次选择。"""
     if Path(output).resolve().is_relative_to(Path(fixture).resolve()):
         fail("output", "演示输出不能位于 fixture 内部。")
+    fixture_manifest = verify_manifest(Path(fixture))
     inputs = load_fixture(fixture)
     before = select_inputs(inputs, allow_synthetic_labels=True)
     if before.batch is None:
         fail("demo.before", before.to_dict()["failure_reason"])
     ids = before.to_dict()["identities"]
     batch_id = "batch_" + digest({"context": before.batch.context_id, "fingerprint": before.batch.fingerprint})
-    history = BatchHistory(batches=(HistoricalBatch(batch_id, ids["policy_hash"], ids["labels_hash"],
+    history = BatchHistory(batches=inputs.history.batches + (HistoricalBatch(batch_id, ids["policy_hash"], ids["labels_hash"],
                ids["dataset_hash"], tuple(x.data_id for x in before.batch.items)),))
     feedback_raw = read_json(Path(fixture) / "feedback.fixture.json")
     dispatch_raw = read_json(Path(fixture) / "dispatch.fixture.json")
     feedback_raw["batch_id"] = batch_id
     dispatch_raw["inputs"]["batch_id"] = batch_id
     feedback = parse_feedback(feedback_raw, inputs.ontology)
+    if feedback.parent_checkpoint_id != inputs.contract.model.checkpoint_id:
+        fail("feedback.parent_checkpoint_id", "与本次筛选的实际父模型不一致。")
     if feedback.fit.supervised_tokens != before.batch.supervised_tokens:
         fail("feedback.fit.supervised_tokens", "与实际批次不一致。")
     dispatch = parse_dispatch(dispatch_raw)
+    if dispatch.next_action != "select_next_batch":
+        fail("dispatch.next_action", "两次筛选演示要求 select_next_batch；stop 请使用独立 apply-dispatch 保存。")
     applied = apply_dispatch(inputs.policy, dispatch, feedback, inputs.ontology, history)
     # 历史随轮次增加。数据、标签、分数和 seed 保持相同。
     after = select_inputs(replace(inputs, policy=applied.policy, history=history), allow_synthetic_labels=True)
@@ -212,8 +226,8 @@ def run_demo(fixture: str | Path, output: str | Path) -> dict[str, Any]:
     comparison = {"notice": NOTICE, "before_ids": before_ids, "after_ids": after_ids,
         "membership_changed": set(before_ids) != set(after_ids), "policy_diff": applied.to_dict()["diff"],
         "policy_metadata_diff": applied.to_dict()["metadata_diff"],
-        "before_ranking": [x["data_id"] for x in sorted(before.to_dict()["candidates"], key=lambda x: x["ranking_position"])],
-        "after_ranking": [x["data_id"] for x in sorted(after.to_dict()["candidates"], key=lambda x: x["ranking_position"])],
+        "before_ranking": ranking_ids(before),
+        "after_ranking": ranking_ids(after),
         "same_inputs": {k: before.to_dict()["identities"][k] == after.to_dict()["identities"][k]
                         for k in ("dataset_hash", "labels_hash", "scoring_hash", "contract_hash", "ontology_hash")},
         "same_seed": before.batch.seed == after.batch.seed,
@@ -223,6 +237,8 @@ def run_demo(fixture: str | Path, output: str | Path) -> dict[str, Any]:
         # 复制已核验的全部输入。绑定后的反馈和调度另存于根目录。
         import shutil
         shutil.copytree(source, root / "inputs")
+        if verify_manifest(root / "inputs") != fixture_manifest:
+            fail("fixture", "输入快照在执行期间发生变化，拒绝发布。")
         for name, result in (("before", before), ("after", after)):
             (root / name).mkdir()
             save_selection(root / name, result)

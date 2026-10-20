@@ -6,12 +6,25 @@ from dataclasses import replace
 from rsi.contracts import Preference
 from rsi.history import BatchHistory, HistoricalBatch
 from rsi.policy import adapt_policy, parse_policy
+from rsi.policy_selection import validate_selection
 from rsi.selection import FixedSelector, SelectionContext, build_batch, score_terms, utility
 from rsi.validation import ValidationError, digest
 from tests.selection_helpers import SelectionFixture
 
 
 class PolicySelectionTests(SelectionFixture):
+    def test_validated_context_keeps_label_and_history_identity_when_reused_by_batch_builder(self) -> None:
+        first = validate_selection(*self.inputs(), allow_synthetic_labels=True)
+        self.assertEqual(first.context_id, self.select().batch.context_id)
+        self.values["labels"][0]["label_version"] = "labels-v2"
+        second = validate_selection(*self.inputs(), allow_synthetic_labels=True)
+        history = BatchHistory(batches=(HistoricalBatch("old", "p", "l", "d", ("sample_010",)),))
+        third = validate_selection(*self.inputs(), history, allow_synthetic_labels=True)
+        self.assertEqual(len({x.context_id for x in (first, second, third)}), 3)
+        batches = [build_batch(context, FixedSelector()) for context in (first, second, third)]
+        self.assertEqual(len({batch.context_id for batch in batches}), 3)
+        self.assertEqual(len({batch.fingerprint for batch in batches}), 1)
+
     def test_trapezoid_boundary_values(self) -> None:
         preference = Preference((.2, 1), (.4, .8))
         self.assertEqual([utility(x, preference) for x in (0, .2, .4, .6, .8, 1)], [0, 0, 1, 1, 1, 0])

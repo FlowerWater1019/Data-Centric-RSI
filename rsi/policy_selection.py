@@ -1,7 +1,8 @@
 """标签筛选与可解释报告。复用已有排名和完整轨迹组批。"""
 
-from dataclasses import dataclass, replace
-from typing import Any
+from dataclasses import dataclass
+from types import MappingProxyType
+from typing import Any, Mapping
 
 from .contracts import ExperimentContract
 from .data import ScoreSnapshot, TrajectoryRecord
@@ -11,6 +12,19 @@ from .policy import SelectionPolicy, adapt_policy
 from .selection import (BatchManifest, FixedSelector, ScoreTerms, SelectionContext,
                         build_batch, check_task_type_shares, score_terms)
 from .validation import BudgetError, QuotaError, canonical, digest, fail, loads, to_json_value
+
+
+@dataclass(frozen=True)
+class PolicySelectionContext(SelectionContext):
+    """携带完整输入身份，可直接传给旧排名器和组批器。"""
+    identities: Mapping[str, str]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "identities", MappingProxyType(dict(self.identities)))
+
+    @property
+    def context_id(self) -> str:
+        return digest(self.identities)
 
 
 @dataclass(frozen=True)
@@ -39,7 +53,7 @@ class SelectionResult:
 def validate_selection(contract: ExperimentContract, records: tuple[TrajectoryRecord, ...],
                        labels: tuple[DataLabels, ...], ontology: SkillOntology,
                        policy: SelectionPolicy, history: BatchHistory = BatchHistory(),
-                       *, allow_synthetic_labels: bool = False) -> SelectionContext:
+                       *, allow_synthetic_labels: bool = False) -> PolicySelectionContext:
     """校验全部输入及合格候选评分。不组批、不训练。"""
     bound = bind_labels(records, labels, ontology, contract, allow_synthetic_labels=allow_synthetic_labels)
     if policy.domain != ontology.domain or policy.skill_ontology_version != ontology.ontology_version:
@@ -49,7 +63,14 @@ def validate_selection(contract: ExperimentContract, records: tuple[TrajectoryRe
     eligible = tuple(r for r in records if r.role == "candidate" and not exclusion_reasons(r, bound[r.data_id], policy, deferred))
     for record in eligible:
         record.require_current_scores(derived)
-    return SelectionContext(derived, eligible, digest(derived), digest([r.raw for r in sorted(records, key=lambda r: r.data_id)]))
+    ordered = sorted(records, key=lambda record: record.data_id)
+    dataset_hash = digest([r.raw for r in ordered])
+    identities = {"contract_hash": digest(contract), "derived_contract_hash": digest(derived),
+                  "model_hash": digest(contract.model), "dataset_hash": dataset_hash,
+                  "labels_hash": digest(sorted(labels, key=lambda x: x.data_id)), "ontology_hash": digest(ontology),
+                  "policy_hash": digest(policy), "history_hash": digest(history),
+                  "scoring_hash": digest({"versions": contract.scoring, "snapshots": [r.scores for r in ordered]})}
+    return PolicySelectionContext(derived, eligible, identities["derived_contract_hash"], dataset_hash, identities)
 
 
 def exclusion_reasons(record: TrajectoryRecord, label: DataLabels, policy: SelectionPolicy,
@@ -89,20 +110,15 @@ def select_with_policy(contract: ExperimentContract, records: tuple[TrajectoryRe
     context = validate_selection(contract, records, labels, ontology, policy, history,
                                  allow_synthetic_labels=allow_synthetic_labels)
     bound = {label.data_id: label for label in labels}
-    identities = {"contract_hash": digest(contract), "derived_contract_hash": digest(context.contract),
-                  "model_hash": digest(contract.model), "dataset_hash": context.dataset_hash,
-                  "labels_hash": digest(sorted(labels, key=lambda x: x.data_id)), "ontology_hash": digest(ontology),
-                  "policy_hash": digest(policy), "history_hash": digest(history),
-                  "scoring_hash": digest({"versions": contract.scoring,
-                       "snapshots": [r.scores for r in sorted(records, key=lambda r: r.data_id)]})}
-    context_id = digest(identities)
+    identities = dict(context.identities)
+    context_id = context.context_id
     ranked = FixedSelector().rank(context)
     ranks = {r.data_id: i for i, r in enumerate(ranked, 1)}
     batch = None
     status, reason = "SELECTED", None
     task_shares: dict[str, float] = {}
     try:
-        batch = replace(build_batch(context, FixedSelector()), context_id=context_id)
+        batch = build_batch(context, FixedSelector())
         selected_ids = {item.data_id for item in batch.items}
         for task in policy.eligibility.allowed_task_types:
             task_shares[task] = sum(r.supervised_tokens for r in ranked if r.data_id in selected_ids

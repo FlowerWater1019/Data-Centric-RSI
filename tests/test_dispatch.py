@@ -142,6 +142,16 @@ class DispatchTests(SelectionFixture):
         with self.assertRaisesRegex(ValidationError, "历史调度缺少"):
             apply_dispatch(context[0], dispatch, *context[2:], (old_dispatch,))
 
+    def test_history_evidence_cannot_silently_replace_current_evidence(self) -> None:
+        context = self.dispatch_context()
+        old = replace(context[1], dispatch_id="old")
+        raw = context[2].to_dict()
+        raw["evidence"]["old:fit_nll"] = {"kind": "fit_entropy", "skill_id": None}
+        feedback = parse_feedback(raw, self.ontology)
+        dispatch = replace(context[1], inputs=replace(context[1].inputs, history_dispatch_ids=("old",)))
+        with self.assertRaisesRegex(ValidationError, "证据.*冲突"):
+            apply_dispatch(context[0], dispatch, feedback, *context[3:], (old,), (context[2],))
+
     def test_empty_patch_and_natural_language_do_not_change_selection(self) -> None:
         self.values["dispatch"]["policy_update"]["set"] = {}
         self.values["dispatch"]["natural_language_dispatch"] = "这只是待人审阅的说明。"

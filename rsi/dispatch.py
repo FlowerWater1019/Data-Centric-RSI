@@ -200,7 +200,10 @@ def validate_dispatch_context(policy: SelectionPolicy, dispatch: DispatchDecisio
                 for k in ("batch_id", "parent_checkpoint_id", "candidate_checkpoint_id", "feedback_id")):
             fail("feedback_history", "历史反馈与调度身份不一致。")
         for name, item in old_feedback.evidence.items():
-            evidence[old.dispatch_id + ":" + name] = item
+            qualified_name = old.dispatch_id + ":" + name
+            if qualified_name in evidence:
+                fail("dispatch.diagnosis.evidence_refs", "当前或历史证据 ID 冲突：" + qualified_name)
+            evidence[qualified_name] = item
     refs = [x.evidence_ref for x in dispatch.diagnosis.observations]
     refs += [ref for h in dispatch.diagnosis.hypotheses for ref in h.evidence_refs]
     refs.append(dispatch.model_action.acceptance_evidence_ref)

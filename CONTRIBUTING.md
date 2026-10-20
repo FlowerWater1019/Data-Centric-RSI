@@ -125,3 +125,5 @@ Linux 隔离集成测试通过 `RSI_RUN_SANDBOX_TESTS=1` 显式启用。默认�
 独立标签入口使用 `policy_selection.validate_selection` 和 `select_with_policy`。排名与解释均调用 `selection.score_terms`。预算与配额失败分别使用 `BudgetError` 和 `QuotaError`，两者仍继承 `ValidationError`。输入错误继续抛出 `ValidationError`。旧调用方无需修改异常处理。
 
 调度应用使用 `dispatch.apply_dispatch`。该纯函数返回新策略、实际语义差异和元数据差异。持久化由 `selection_io` 和命令适配层负责。它们不写训练数据库，不执行模型切换。操作说明见 [筛选链路演示运行手册](docs/筛选链路演示运行手册.md)。
+
+`validate_selection` 返回继承 SelectionContext 的 PolicySelectionContext。该上下文在直接传给共用组批器时也必须保留标签和历史身份。复核范围及回归结果见 [标签策略与调度代码复核记录](docs/标签策略与调度代码复核记录.md)。
