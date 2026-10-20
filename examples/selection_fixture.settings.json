@@ -1,0 +1,4 @@
+{
+  "skills": ["code_generation", "error_analysis", "regression_check"],
+  "labels_per_sample": 1
+}

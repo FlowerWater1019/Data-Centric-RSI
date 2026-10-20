@@ -21,6 +21,8 @@ def emit(value: dict[str, object]) -> None:
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(description="RSI 实验内核。支持结构检查、计划、状态和单卡工程验证。")
     commands = root.add_subparsers(dest="command", required=True)
+    from .selection_cli import add_commands
+    add_commands(commands)
     validate = commands.add_parser("validate", help="校验配置和轨迹，不启动训练。")
     validate.add_argument("--config", required=True)
     validate.add_argument("--data", required=True)
@@ -100,6 +102,10 @@ def parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     try:
+        from .selection_cli import COMMANDS, run_command
+        if args.command in COMMANDS:
+            emit(run_command(args))
+            return 0
         if args.command == "report-comparison":
             from .reporting import report_comparison
             emit(report_comparison(args.training, args.evaluation, args.output))

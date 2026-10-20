@@ -9,7 +9,7 @@ from typing import Protocol
 from .contracts import ExperimentContract, ModelRef, Preference
 from .data import TrajectoryRecord
 from .packing import exact_ranked
-from .validation import digest, fail, to_json_value
+from .validation import BudgetError, QuotaError, digest, fail, to_json_value
 
 
 @dataclass(frozen=True)
@@ -54,25 +54,50 @@ def utility(value: float, preference: Preference) -> float:
     return (value - a) / (b - a) if value < b else (d - value) / (d - c)
 
 
+@dataclass(frozen=True)
+class ScoreTerms:
+    nll_utility: float
+    entropy_utility: float
+    skill_match: float
+    weighted_nll: float
+    weighted_entropy: float
+    weighted_skill: float
+    total: float
+
+
+def score_terms(record: TrajectoryRecord, contract: ExperimentContract) -> ScoreTerms:
+    """排名与解释共用评分。调用方先核对当前评分版本。"""
+    strategy = contract.fixed_strategy
+    scores = record.scores
+    if scores is None:
+        fail(record.data_id, "固定策略缺少当前分数。")
+    nll = utility(scores.nll_percentile, strategy.nll)
+    entropy = utility(scores.entropy_percentile, strategy.entropy)
+    skill = max((strategy.skill_preferences.get(k, 0) for k in record.skills), default=0)
+    wn, we, ws = strategy.weights["nll"] * nll, strategy.weights["entropy"] * entropy, strategy.weights["skill"] * skill
+    return ScoreTerms(nll, entropy, skill, wn, we, ws, wn + we + ws)
+
+
 class FixedSelector:
     name = "fixed"
 
     def rank(self, context: SelectionContext) -> list[TrajectoryRecord]:
-        strategy = context.contract.fixed_strategy
         records = context.eligible()
         for record in records:
             record.require_current_scores(context.contract)
 
-        def score(record: TrajectoryRecord) -> float:
-            scores = record.scores
-            if scores is None:
-                fail(record.data_id, "固定策略缺少当前分数。")
-            skill = max((strategy.skill_preferences.get(k, 0) for k in record.skills), default=0)
-            return (strategy.weights["nll"] * utility(scores.nll_percentile, strategy.nll)
-                    + strategy.weights["entropy"] * utility(scores.entropy_percentile, strategy.entropy)
-                    + strategy.weights["skill"] * skill)
+        return sorted(records, key=lambda r: (-score_terms(r, context.contract).total, r.data_id))
 
-        return sorted(records, key=lambda r: (-score(r), r.data_id))
+
+def check_task_type_shares(shares: Mapping[str, float], minimum: Mapping[str, float],
+                           maximum: Mapping[str, float]) -> None:
+    """组批后核对任务类型配额。不重排或放宽约束。"""
+    for task, value in minimum.items():
+        if shares.get(task, 0) < value:
+            raise QuotaError("batch.task_type.min." + task + ": 配额检查失败；没有自动放宽配额。")
+    for task, value in maximum.items():
+        if shares.get(task, 0) > value:
+            raise QuotaError("batch.task_type.max." + task + ": 配额检查失败；没有自动放宽配额。")
 
 
 @dataclass(frozen=True)
@@ -130,11 +155,11 @@ def build_batch(context: SelectionContext, selector: Selector) -> BatchManifest:
         duplicate_groups.add(record.duplicate_group)
         content_hashes.add(record.content_hash)
     if not selected or total < context.contract.token_budget - context.contract.allowed_shortfall:
-        fail("batch", "贪心组批未找到预算内合法批次；未证明约束无解。")
+        raise BudgetError("batch: 贪心组批未找到预算内合法批次；未证明约束无解。")
     shares = {k: sum(r.supervised_tokens for r in selected if k in r.skills) / total for k in context.contract.skills}
     for skill, minimum in context.contract.min_skill_shares.items():
         if shares[skill] < minimum:
-            fail("batch", f"贪心组批未满足 {skill} 覆盖要求；没有自动放宽配额。")
+            raise QuotaError(f"batch: 贪心组批未满足 {skill} 覆盖要求；没有自动放宽配额。")
     items = tuple(BatchItem(r.data_id, r.version, r.train_mask_version, r.content_hash, 1, r.supervised_tokens)
                   for r in selected)
     fingerprint = digest(sorted(items, key=lambda item: item.data_id))

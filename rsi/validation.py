@@ -13,6 +13,14 @@ class ValidationError(ValueError):
     """输入不符合实验约定。"""
 
 
+class BudgetError(ValidationError):
+    """完整轨迹组批未达到监督预算。"""
+
+
+class QuotaError(ValidationError):
+    """已组批的成员未通过配额检查。"""
+
+
 def fail(path: str, message: str) -> NoReturn:
     raise ValidationError(f"{path}: {message}")
 
@@ -113,12 +121,23 @@ def _pairs(pairs: list[tuple[str, Any]]) -> dict:
     return result
 
 
+def _finite_float(text: str) -> float:
+    value = float(text)
+    if not math.isfinite(value):
+        fail("JSON.number", "指数数值超出有限浮点范围。")
+    return value
+
+
 def loads(text: str) -> Any:
     try:
-        return json.loads(text, object_pairs_hook=_pairs,
+        return json.loads(text, object_pairs_hook=_pairs, parse_float=_finite_float,
                           parse_constant=lambda x: fail("JSON", f"禁止数值 {x}。"))
     except json.JSONDecodeError as exc:
         raise ValidationError(f"JSON 第 {exc.lineno} 行：{exc.msg}") from exc
+    except ValidationError:
+        raise
+    except ValueError as exc:
+        raise ValidationError(f"JSON.number: 数值解析失败：{exc}") from exc
 
 
 def read_json(path: str | Path) -> Any:

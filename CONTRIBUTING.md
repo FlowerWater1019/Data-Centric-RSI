@@ -12,6 +12,13 @@
 | `rsi/data.py` | 轨迹、监督掩码和数据隔离 | token 位置、数据角色、分数版本 |
 | `rsi/inspection.py` | 分数检查与结构校验报告 | 与选择器共用可选资格 |
 | `rsi/selection.py` | 策略排序与统一组批 | 确定性、配额、监督预算 |
+| `rsi/labels.py` | 独立标签、技能表与轨迹快照关联 | 严格解析、未知质量、模拟权限、不可覆盖旧字段 |
+| `rsi/policy.py` | 独立策略与派生合同 | 冻结预算、版本一致、不可变性 |
+| `rsi/policy_selection.py` | 标签资格检查与解释报告 | 当前评分、上下文身份、预算与配额失败区分 |
+| `rsi/feedback.py`、`rsi/history.py` | 模拟反馈与显式批次历史 | 计数分母、证据类型、成员引用 |
+| `rsi/dispatch.py` | 调度上下文与纯补丁应用 | 显式白名单、完整重校验、身份与证据一致 |
+| `rsi/selection_io.py` | 输入读取与本地产物发布 | 单写者、拒绝覆盖、清单校验、失败清理 |
+| `rsi/selection_demo.py`、`rsi/selection_cli.py` | 合成演示与命令适配 | 固定种子、无模型依赖、NOT_RUN 标记 |
 | `rsi/comparison.py` | 不依赖数据库的对照计划计算 | 等监督量、总预算、计划字段 |
 | `rsi/schema.py` | 数据库建表与版本检查 | 先检查已有格式，禁止隐式修复 |
 | `rsi/state.py` | SQLite 快照、事件和成本 | 事务、幂等、恢复、并发预算预留 |
@@ -114,3 +121,9 @@ Linux 隔离集成测试通过 `RSI_RUN_SANDBOX_TESTS=1` 显式启用。默认�
 修改训练损失或诊断逻辑时，运行可选模型测试。该测试同时检查变长监督量、诊断开关不改变模型参数、完整恢复参数一致和失败后成本保留。
 
 真实数据开发对照使用 `real_run` 准备输入，使用 `training_run` 执行冻结计划。不要把这些流程复制到新数据集适配器。新适配器应输出已有来源格式或已校验轨迹。
+
+独立标签入口使用 `policy_selection.validate_selection` 和 `select_with_policy`。排名与解释均调用 `selection.score_terms`。预算与配额失败分别使用 `BudgetError` 和 `QuotaError`，两者仍继承 `ValidationError`。输入错误继续抛出 `ValidationError`。旧调用方无需修改异常处理。
+
+调度应用使用 `dispatch.apply_dispatch`。该纯函数返回新策略、实际语义差异和元数据差异。持久化由 `selection_io` 和命令适配层负责。它们不写训练数据库，不执行模型切换。操作说明见 [筛选链路演示运行手册](docs/筛选链路演示运行手册.md)。
+
+`validate_selection` 返回继承 SelectionContext 的 PolicySelectionContext。该上下文在直接传给共用组批器时也必须保留标签和历史身份。复核范围及回归结果见 [标签策略与调度代码复核记录](docs/标签策略与调度代码复核记录.md)。

@@ -1,7 +1,7 @@
 """按排名选择完整轨迹。后缀可达集合用于避免贪心预算缺口。"""
 
 from .data import TrajectoryRecord
-from .validation import fail, integer
+from .validation import BudgetError, fail, integer
 
 
 def exact_ranked(records: list[TrajectoryRecord], budget: int) -> list[TrajectoryRecord]:
@@ -25,7 +25,7 @@ def exact_ranked(records: list[TrajectoryRecord], budget: int) -> list[Trajector
         if lengths[i] <= budget:
             suffix[i] |= (suffix[i + 1] << lengths[i]) & limit
     if not (suffix[0] >> budget) & 1:
-        fail("packing", "完整轨迹无法达到指定监督 token 总量。没有截断或重复数据。")
+        raise BudgetError("packing: 完整轨迹无法达到指定监督 token 总量。没有截断或重复数据。")
     selected, remaining = [], budget
     for i, record in enumerate(records):
         after = remaining - lengths[i]

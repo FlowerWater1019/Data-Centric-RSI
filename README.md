@@ -12,6 +12,17 @@ run-comparison 执行真实数据评分和两组等监督 token 训练。resume-
 
 当前基础命令只检查数据与计划。它们不会自行启动训练。演示数据和工程验证结果不属于研究效果证据。
 
+新增独立的标签、筛选策略与模拟调度接口。该接口使用 sidecar JSONL 关联旧轨迹，复用现有固定评分和完整轨迹组批。旧合同、数据库格式和命令默认行为保持兼容。
+
+离线演示生成 10 条候选和 2 条参考轨迹。演示执行两次筛选，中间应用预设调度补丁。训练和任务执行均为 `NOT_RUN`。
+
+```text
+python -m rsi make-selection-fixture --output runs/selection-fixture --seed 42 --settings examples/selection_fixture.settings.json
+python -m rsi selection-demo --fixture runs/selection-fixture --output runs/selection-demo
+```
+
+输出目录必须不存在。字段定义见 [标签策略与调度接口](docs/标签策略与调度接口.md)。独立命令、产物和实测结果见 [筛选链路演示运行手册](docs/筛选链路演示运行手册.md)。这些模拟结果不提供真实标签有效性、模型能力或 RSI 效果证据。
+
 GitHub 仓库为 [FlowerWater1019/Data-Centric-RSI](https://github.com/FlowerWater1019/Data-Centric-RSI)。克隆后的仓库目录就是工程根目录。本机现有工作目录为 `D:\RSI\framework`。
 
 训练端的 Codex 先读取 [CODEX_HANDOFF.md](docs/CODEX_HANDOFF.md)。该文件给出接手顺序、模型适配边界、数据获取方式和回传要求。
