@@ -13,6 +13,14 @@ class ValidationError(ValueError):
     """输入不符合实验约定。"""
 
 
+class BudgetError(ValidationError):
+    """完整轨迹组批未达到监督预算。"""
+
+
+class QuotaError(ValidationError):
+    """已组批的成员未通过配额检查。"""
+
+
 def fail(path: str, message: str) -> NoReturn:
     raise ValidationError(f"{path}: {message}")
 
