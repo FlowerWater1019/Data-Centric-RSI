@@ -19,7 +19,7 @@ class PythonTask:
     tests: tuple[str, ...]
 
     @classmethod
-    def parse(cls, value: Any) -> "PythonTask":
+    def parse(cls, value: Any, *, allowed_groups: frozenset[str] = frozenset({"target", "retention"})) -> "PythonTask":
         raw = obj(value, "task", {"task_id", "group", "split_group", "duplicate_group", "prompt", "entry_point", "setup", "tests"})
         texts = {key: string(raw[key], "task." + key) for key in
                  ("task_id", "split_group", "duplicate_group", "prompt", "entry_point")}
@@ -37,7 +37,7 @@ class PythonTask:
                 fail("task.tests", "测试语法无效：" + str(exc))
             if not tree.body or not all(isinstance(node, ast.Assert) for node in tree.body):
                 fail("task.tests", "每个测试必须只包含 assert 语句。")
-        return cls(texts["task_id"], choice(raw["group"], "task.group", {"target", "retention"}),
+        return cls(texts["task_id"], choice(raw["group"], "task.group", set(allowed_groups)),
                    texts["split_group"], texts["duplicate_group"], texts["prompt"], texts["entry_point"], raw["setup"], tests)
 
 

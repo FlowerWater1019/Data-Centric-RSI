@@ -1,0 +1,87 @@
+{
+  "schema_version": "execution-suite-v1",
+  "suite_id": "benchmark_smoke",
+  "revision": "synthetic-v1",
+  "purpose": "final_test",
+  "domain": "coding",
+  "ontology_version": "demo-coding-skills-v1",
+  "provenance": "synthetic_fixture",
+  "environment_id": "bounded-expression-v1",
+  "generation": {
+    "strategy": "greedy",
+    "attempts": 1,
+    "max_new_tokens": 64,
+    "max_context_length": 512,
+    "seed": 42
+  },
+  "tasks": [
+    {
+      "task_id": "benchmark_0",
+      "source_problem_id": "benchmark_problem_0",
+      "split_group": "benchmark_split_0",
+      "duplicate_group": "benchmark_dup_0",
+      "group": "final_test",
+      "skills": [
+        "code_generation",
+        "error_analysis"
+      ],
+      "label_source": "synthetic_fixture",
+      "content_fingerprint": "e28ec1e1d7291e023e6e30cc467bb56854bfd77c212a6e7c3fc7b2d7f7b608f7",
+      "adapter_id": "bounded_integer_expression_v1",
+      "adapter_version": "1",
+      "payload": {
+        "prompt": "Write solve(x, y) to add two integers.",
+        "tests": [
+          {
+            "arguments": [
+              1,
+              4
+            ],
+            "expected": 5
+          },
+          {
+            "arguments": [
+              -2,
+              7
+            ],
+            "expected": 5
+          }
+        ]
+      }
+    },
+    {
+      "task_id": "benchmark_1",
+      "source_problem_id": "benchmark_problem_1",
+      "split_group": "benchmark_split_1",
+      "duplicate_group": "benchmark_dup_1",
+      "group": "final_test",
+      "skills": [
+        "code_generation",
+        "error_analysis"
+      ],
+      "label_source": "synthetic_fixture",
+      "content_fingerprint": "62a5ca3ea5633373b7f9498a2f32b58c7ebd73743887f22273e5ec289ac0045d",
+      "adapter_id": "bounded_integer_expression_v1",
+      "adapter_version": "1",
+      "payload": {
+        "prompt": "Write solve(x, y) to add two integers.",
+        "tests": [
+          {
+            "arguments": [
+              2,
+              4
+            ],
+            "expected": 6
+          },
+          {
+            "arguments": [
+              -2,
+              7
+            ],
+            "expected": 5
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "schema_version": "skill-ontology-v1",
+  "ontology_version": "demo-coding-skills-v1",
+  "domain": "coding",
+  "skills": [
+    {
+      "id": "code_generation",
+      "name": "code_generation",
+      "description": "合成演示技能，不表示真实能力。"
+    },
+    {
+      "id": "error_analysis",
+      "name": "error_analysis",
+      "description": "合成演示技能，不表示真实能力。"
+    },
+    {
+      "id": "regression_check",
+      "name": "regression_check",
+      "description": "合成演示技能，不表示真实能力。"
+    }
+  ]
+}

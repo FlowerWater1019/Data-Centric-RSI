@@ -11,6 +11,14 @@ class TestCase:
     arguments: tuple[int, int]
     expected: int
 
+    @classmethod
+    def parse(cls, value: Any) -> "TestCase":
+        test = obj(value, "test", {"arguments", "expected"})
+        args = array(test["arguments"], "test.arguments")
+        if len(args) != 2 or any(type(x) is not int or abs(x) > 10**12 for x in (*args, test["expected"])):
+            fail("test", "每个测试必须提供两个参数和期望值，均为绝对值不超过 10^12 的整数。")
+        return cls(tuple(args), test["expected"])
+
 
 @dataclass(frozen=True)
 class CodingTask:
@@ -43,14 +51,7 @@ class TaskSuite:
             item = obj(item, path, {"task_id", "group", "split_group", "duplicate_group", "prompt", "tests"})
             tests = []
             for test in array(item["tests"], path + ".tests", True):
-                test = obj(test, path + ".tests", {"arguments", "expected"})
-                args = array(test["arguments"], path + ".arguments")
-                if len(args) != 2:
-                    fail(path, "每个测试必须提供两个整数参数。")
-                values = [*args, test["expected"]]
-                if any(type(x) is not int or abs(x) > 10**12 for x in values):
-                    fail(path, "测试值必须是绝对值不大于 10^12 的整数。")
-                tests.append(TestCase(tuple(args), test["expected"]))
+                tests.append(TestCase.parse(test))
             prompt = string(item["prompt"], path + ".prompt")
             if len(prompt) > 4096 or len(tests) > 100:
                 fail(path, "提示最多 4096 字符，每任务最多 100 个测试。")

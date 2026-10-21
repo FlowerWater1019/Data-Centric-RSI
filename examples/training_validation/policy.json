@@ -1,0 +1,93 @@
+{
+  "schema_version": "selection-policy-v1",
+  "policy_id": "policy_001",
+  "parent_policy_id": null,
+  "domain": "coding",
+  "skill_ontology_version": "demo-coding-skills-v1",
+  "created_by": {
+    "type": "human",
+    "controller_checkpoint_id": null,
+    "dispatch_id": null
+  },
+  "eligibility": {
+    "allowed_label_modes": [
+      "synthetic_fixture"
+    ],
+    "required_true_flags": [
+      "no_answer_leakage",
+      "protocol_valid",
+      "quality_pass",
+      "result_verified",
+      "trajectory_complete"
+    ],
+    "unknown_flag_action": "exclude",
+    "allowed_task_types": [
+      "code_generation"
+    ],
+    "allowed_trajectory_types": [
+      "single_turn"
+    ],
+    "allowed_harness_protocols": [
+      "python_function_v1"
+    ],
+    "allowed_languages": [
+      "python"
+    ],
+    "excluded_data_ids": [],
+    "deferred_batch_ids": []
+  },
+  "scoring": {
+    "formula_version": "weighted_utility_v1",
+    "score_requirement": "current_checkpoint",
+    "reference_version": "reference_demo_v1",
+    "cdf_version": "cdf_accepted_demo_00",
+    "nll_preference": {
+      "support": [
+        0.2,
+        0.95
+      ],
+      "preferred": [
+        0.45,
+        0.75
+      ]
+    },
+    "entropy_preference": {
+      "support": [
+        0.1,
+        0.9
+      ],
+      "preferred": [
+        0.3,
+        0.65
+      ]
+    },
+    "skill_preferences": {
+      "code_generation": 0.7,
+      "error_analysis": 0.39999999999999997,
+      "regression_check": 0.1
+    },
+    "skill_aggregation": "max",
+    "weights": {
+      "nll": 0.3,
+      "entropy": 0.15,
+      "skill": 0.55
+    }
+  },
+  "batch_constraints": {
+    "supervised_token_budget": 136,
+    "allowed_shortfall": 0,
+    "max_context_tokens_per_sample": 4096,
+    "min_skill_token_shares": {},
+    "min_task_type_token_shares": {},
+    "max_task_type_token_shares": {},
+    "duplicate_rule": "one_per_duplicate_group",
+    "allow_within_batch_repetition": false
+  },
+  "execution": {
+    "packing_rule": "exact_ranked_v1",
+    "quota_handling": "postcheck_fail",
+    "tie_breaker": "data_id_ascending",
+    "seed": 42
+  },
+  "description": "合成演示策略，不表达真实技能结论。"
+}

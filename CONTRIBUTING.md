@@ -22,6 +22,14 @@
 | `rsi/comparison.py` | 不依赖数据库的对照计划计算 | 等监督量、总预算、计划字段 |
 | `rsi/schema.py` | 数据库建表与版本检查 | 先检查已有格式，禁止隐式修复 |
 | `rsi/state.py` | SQLite 快照、事件和成本 | 事务、幂等、恢复、并发预算预留 |
+| `rsi/training_inputs.py`、`rsi/training_compile.py` | 标准来源编译与显式标签重绑 | 消息映射、真实 tokenizer、证据与掩码交集 |
+| `rsi/model_resolution.py`、`rsi/execution_plan.py` | 模型定位和单批冻结计划 | 内容身份、原顺序、LoRA 兼容与禁止重新选数 |
+| `rsi/attempt_run.py`、`rsi/training_mock.py` | 单次训练与显式测试后端 | 单计划事务、使用量、失败成本、完整步骤恢复 |
+| `rsi/fit_evaluation.py` | 整条轨迹与技能片段拟合 | 目标移位、完整词表熵、token 加权、缺失值 |
+| `rsi/task_adapters.py`、`rsi/execution_evaluation.py` | 版本化任务与单模型执行 | 隔离、隐藏测试、技能重叠、完整分母 |
+| `rsi/round_feedback.py`、`rsi/validation_run.py` | 四项测量和可复算反馈 | 来源、证据哈希、阶段缓存、完整测量后验收 |
+| `rsi/benchmark_run.py` | 独立最终测试 | 禁止进入反馈和验收、复用执行器 |
+| `rsi/execution_artifacts.py`、`rsi/training_cli.py`、`rsi/training_demo.py` | 执行清单、命令和演示 | 源码与依赖身份、拒绝覆盖、mock 不冒充实测 |
 | `rsi/backends.py` | 训练与评估接口 | 输入产物、实际成本、失败传播 |
 | `rsi/cli.py` | 命令参数与输出 | 退出码、错误信息、可重复调用 |
 | `rsi/tokenization.py` | 消息到 token 的映射 | 模板边界、错误动作排除、往返一致 |

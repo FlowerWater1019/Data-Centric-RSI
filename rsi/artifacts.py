@@ -48,7 +48,18 @@ def verify_training_artifact(artifact: ArtifactRef) -> None:
     if file_sha256(path) != artifact.sha256:
         fail("artifact", "训练产物清单校验值不匹配。")
     manifest = read_json(path)
-    for entry in manifest["files"]:
+    from .validation import array, obj, string
+    if not isinstance(manifest, dict) or "files" not in manifest:
+        fail("artifact.files", "产物清单必须提供文件列表。")
+    entries = array(manifest["files"], "artifact.files", True)
+    seen: set[Path] = set()
+    for entry in entries:
+        entry = obj(entry, "artifact.file", {"name", "sha256"})
+        string(entry["name"], "artifact.file.name")
+        string(entry["sha256"], "artifact.file.sha256")
         target = (path.parent / entry["name"]).resolve()
+        if target in seen:
+            fail("artifact.files", "多个条目指向相同文件。")
+        seen.add(target)
         if not target.is_relative_to(path.parent) or file_sha256(target) != entry["sha256"]:
             fail("artifact", "训练产物文件越界或校验值不匹配。")

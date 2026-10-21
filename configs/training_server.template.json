@@ -1,0 +1,22 @@
+{
+  "schema_version": "training-server-checklist-v1",
+  "executable": false,
+  "reason": "此文件是待核验清单。它不是 CLI 配置。不得把占位值当作已验证环境。",
+  "base_model_path": null,
+  "model_architecture": null,
+  "parent_adapter_manifest": null,
+  "parent_adapter_sha256": null,
+  "gpu_uuid": null,
+  "gpu_name": null,
+  "software_versions_file": null,
+  "lora_targets_confirmed": null,
+  "precision_confirmed": null,
+  "attention_implementation_confirmed": null,
+  "research_split_protocol": null,
+  "primary_metric": null,
+  "training_token_budget": null,
+  "scoring_token_budget": null,
+  "evaluation_call_budget": null,
+  "seed_list": null,
+  "final_test_isolation": null
+}

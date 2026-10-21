@@ -14,6 +14,16 @@ run-comparison 执行真实数据评分和两组等监督 token 训练。resume-
 
 新增独立的标签、筛选策略与模拟调度接口。该接口使用 sidecar JSONL 关联旧轨迹，复用现有固定评分和完整轨迹组批。旧合同、数据库格式和命令默认行为保持兼容。
 
+第二阶段新增独立单次训练与双路验证。它消费第一阶段冻结批次，支持基座或已有父 adapter、完整步骤恢复、整条轨迹与技能证据片段拟合、独立任务执行和最终 benchmark。控制 Agent、模型自动晋级和多轮 RSI 仍未接入。接口见 [单次训练与双路验证接口](docs/单次训练与双路验证接口.md)，命令见 [运行手册](docs/单次训练与双路验证运行手册.md)。
+
+```text
+python -m rsi training-validation-demo --output runs/training-validation-demo --mode mock --device cpu
+```
+
+此命令是显式 mock 冒烟。它不更新真实参数，所有测量标为 synthetic_fixture。真实 tiny 集成测试在缺少可选依赖时明确跳过，不能由 mock 演示替代。
+
+本次测试、演示、跳过项和显存估算见 [第二阶段验证记录](docs/第二阶段验证记录-2026-10-21.md)。
+
 离线演示生成 10 条候选和 2 条参考轨迹。演示执行两次筛选，中间应用预设调度补丁。训练和任务执行均为 `NOT_RUN`。
 
 ```text

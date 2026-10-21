@@ -1,0 +1,146 @@
+{
+  "schema_version": "message-evidence-v1",
+  "index_rule": "source_message_index_zero_v1",
+  "items": [
+    {
+      "data_id": "sample_001",
+      "trajectory_version": "6601c925be6aafd801bd9efd011a36610fcd49c0d359e0ddc94a2bd95ada6a6e",
+      "skill_id": "regression_check",
+      "source": "synthetic_fixture",
+      "message_index": 1
+    },
+    {
+      "data_id": "sample_001",
+      "trajectory_version": "6601c925be6aafd801bd9efd011a36610fcd49c0d359e0ddc94a2bd95ada6a6e",
+      "skill_id": "code_generation",
+      "source": "synthetic_fixture",
+      "message_index": 1
+    },
+    {
+      "data_id": "sample_002",
+      "trajectory_version": "68f78317cb534cf6896578c3b8db80ed53f0cd7691e99a9a611a584e74008f67",
+      "skill_id": "code_generation",
+      "source": "synthetic_fixture",
+      "message_index": 1
+    },
+    {
+      "data_id": "sample_002",
+      "trajectory_version": "68f78317cb534cf6896578c3b8db80ed53f0cd7691e99a9a611a584e74008f67",
+      "skill_id": "error_analysis",
+      "source": "synthetic_fixture",
+      "message_index": 1
+    },
+    {
+      "data_id": "sample_003",
+      "trajectory_version": "8433ce298551daa91465bfb9d0addb4fdfd89d19c6f5b00799a6507f4c07b5a3",
+      "skill_id": "code_generation",
+      "source": "synthetic_fixture",
+      "message_index": 1
+    },
+    {
+      "data_id": "sample_003",
+      "trajectory_version": "8433ce298551daa91465bfb9d0addb4fdfd89d19c6f5b00799a6507f4c07b5a3",
+      "skill_id": "regression_check",
+      "source": "synthetic_fixture",
+      "message_index": 1
+    },
+    {
+      "data_id": "sample_004",
+      "trajectory_version": "194dce75f08ce1e9b481e1c4be525adfbd1f72e7362bc52f12af32e892dc2089",
+      "skill_id": "code_generation",
+      "source": "synthetic_fixture",
+      "message_index": 1
+    },
+    {
+      "data_id": "sample_004",
+      "trajectory_version": "194dce75f08ce1e9b481e1c4be525adfbd1f72e7362bc52f12af32e892dc2089",
+      "skill_id": "regression_check",
+      "source": "synthetic_fixture",
+      "message_index": 1
+    },
+    {
+      "data_id": "sample_005",
+      "trajectory_version": "d42711d5dbfad2309d08017a2748b90f7e81cf642233461330092f81cea4195c",
+      "skill_id": "regression_check",
+      "source": "synthetic_fixture",
+      "message_index": 1
+    },
+    {
+      "data_id": "sample_005",
+      "trajectory_version": "d42711d5dbfad2309d08017a2748b90f7e81cf642233461330092f81cea4195c",
+      "skill_id": "code_generation",
+      "source": "synthetic_fixture",
+      "message_index": 1
+    },
+    {
+      "data_id": "sample_006",
+      "trajectory_version": "b7db1d073f3b5c44fb7c57947d9d062956e25b0bb5c96146377f882258c5fd1f",
+      "skill_id": "regression_check",
+      "source": "synthetic_fixture",
+      "message_index": 1
+    },
+    {
+      "data_id": "sample_006",
+      "trajectory_version": "b7db1d073f3b5c44fb7c57947d9d062956e25b0bb5c96146377f882258c5fd1f",
+      "skill_id": "error_analysis",
+      "source": "synthetic_fixture",
+      "message_index": 1
+    },
+    {
+      "data_id": "sample_007",
+      "trajectory_version": "a6a13da2ef3fd4edba446d207b378793227773efc7d5242be641ebe079970803",
+      "skill_id": "code_generation",
+      "source": "synthetic_fixture",
+      "message_index": 1
+    },
+    {
+      "data_id": "sample_007",
+      "trajectory_version": "a6a13da2ef3fd4edba446d207b378793227773efc7d5242be641ebe079970803",
+      "skill_id": "regression_check",
+      "source": "synthetic_fixture",
+      "message_index": 1
+    },
+    {
+      "data_id": "sample_008",
+      "trajectory_version": "8b4a46697e4f19409bf9aba996998ec22c148041f801cb2a2842a58e5007e466",
+      "skill_id": "code_generation",
+      "source": "synthetic_fixture",
+      "message_index": 1
+    },
+    {
+      "data_id": "sample_008",
+      "trajectory_version": "8b4a46697e4f19409bf9aba996998ec22c148041f801cb2a2842a58e5007e466",
+      "skill_id": "regression_check",
+      "source": "synthetic_fixture",
+      "message_index": 1
+    },
+    {
+      "data_id": "sample_009",
+      "trajectory_version": "c3dc81a6b2556d4aea7fed22d6118698a4bed515f539f1ae6b04173a9496985a",
+      "skill_id": "code_generation",
+      "source": "synthetic_fixture",
+      "message_index": 1
+    },
+    {
+      "data_id": "sample_009",
+      "trajectory_version": "c3dc81a6b2556d4aea7fed22d6118698a4bed515f539f1ae6b04173a9496985a",
+      "skill_id": "regression_check",
+      "source": "synthetic_fixture",
+      "message_index": 1
+    },
+    {
+      "data_id": "sample_010",
+      "trajectory_version": "d7462f8cbdf0e786621f2d26877ffb24cd0269972f72be5a9b8c1b34ba7ac932",
+      "skill_id": "regression_check",
+      "source": "synthetic_fixture",
+      "message_index": 1
+    },
+    {
+      "data_id": "sample_010",
+      "trajectory_version": "d7462f8cbdf0e786621f2d26877ffb24cd0269972f72be5a9b8c1b34ba7ac932",
+      "skill_id": "code_generation",
+      "source": "synthetic_fixture",
+      "message_index": 1
+    }
+  ]
+}

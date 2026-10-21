@@ -23,6 +23,8 @@ def parser() -> argparse.ArgumentParser:
     commands = root.add_subparsers(dest="command", required=True)
     from .selection_cli import add_commands
     add_commands(commands)
+    from .training_cli import add_commands as add_training_commands
+    add_training_commands(commands)
     validate = commands.add_parser("validate", help="校验配置和轨迹，不启动训练。")
     validate.add_argument("--config", required=True)
     validate.add_argument("--data", required=True)
@@ -102,6 +104,10 @@ def parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
     try:
+        from .training_cli import COMMANDS as TRAINING_COMMANDS, run_command as run_training_command
+        if args.command in TRAINING_COMMANDS:
+            emit(run_training_command(args))
+            return 0
         from .selection_cli import COMMANDS, run_command
         if args.command in COMMANDS:
             emit(run_command(args))

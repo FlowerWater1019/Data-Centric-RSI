@@ -13,7 +13,7 @@ from .comparison import build_comparison
 from .contracts import ExperimentContract
 from .data import validate_dataset
 from .schema import ensure_schema
-from .selection import SelectionContext
+from .selection import BatchManifest, SelectionContext
 from .validation import canonical, choice, digest, fail, integer, loads, string, to_json_value
 
 
@@ -144,6 +144,48 @@ class StateStore:
                                            (run_id, unit)).fetchone()[0]
         return {"limit": limits[unit], "used": used, "reserved": reserved, "available": limits[unit] - used - reserved}
 
+    def prepare_training_plan(self, run_id: str, attempt_id: str, batch: BatchManifest, plan_hash: str) -> bool:
+        """原子登记单批次计划。不重选数据，不创建虚假 comparison。"""
+        string(attempt_id, "attempt_id")
+        string(plan_hash, "plan_hash")
+        payload = {"schema_version": "single-training-plan-v1", "attempt_id": attempt_id,
+                   "batch": batch.to_dict(), "plan_hash": plan_hash}
+        with self.transaction():
+            event_id = "training_plan:" + attempt_id
+            if self.connection.execute("SELECT 1 FROM events WHERE run_id=? AND event_id=?", (run_id, event_id)).fetchone():
+                return self._event(run_id, event_id, "single_training_plan", payload)
+            if self._run(run_id)["status"] not in {"validated", "planned"}:
+                fail("training_plan", "当前状态不能新增计划。")
+            context = self.context(run_id)
+            records = {r.data_id: r for r in context.records}
+            if batch.model != context.contract.model or batch.supervised_tokens > context.contract.token_budget:
+                fail("training_plan", "模型不匹配或单批预算超限。")
+            if len({item.data_id for item in batch.items}) != len(batch.items) or not batch.items:
+                fail("training_plan.items", "成员必须非空且不重复。")
+            selected = []
+            for item in batch.items:
+                record = records.get(item.data_id)
+                if record is None or not record.is_eligible or item.repetitions != 1 or (
+                    item.version, item.mask_version, item.content_hash, item.supervised_tokens
+                ) != (record.version, record.train_mask_version, record.content_hash, record.supervised_tokens):
+                    fail("training_plan.items", "成员与冻结可选轨迹不一致。")
+                selected.append(record)
+            if sum(r.supervised_tokens for r in selected) != batch.supervised_tokens:
+                fail("training_plan.supervised_tokens", "监督总量不一致。")
+            inserted = self._event(run_id, event_id, "single_training_plan", payload)
+            self.connection.execute("UPDATE runs SET status='planned' WHERE run_id=?", (run_id,))
+            return inserted
+
+    def _frozen_batches(self, run_id: str, attempt_id: str) -> list[dict[str, Any]]:
+        """旧对照与新单计划共用合法批次读取，不在执行时重新选数。"""
+        single = self.connection.execute("SELECT payload_json FROM events WHERE run_id=? AND event_id=?",
+                       (run_id, "training_plan:" + attempt_id)).fetchone()
+        if single is not None:
+            return [loads(single[0])["batch"]]
+        plans = self.connection.execute("SELECT payload_json FROM comparisons WHERE run_id=?", (run_id,)).fetchall()
+        result = [arm for plan in plans for arm in loads(plan[0])["arms"].values()]
+        return result
+
     def reserve(self, run_id: str, reservation_id: str, unit: str, amount: int) -> bool:
         string(reservation_id, "reservation_id")
         integer(amount, "amount", 1)
@@ -201,11 +243,20 @@ class StateStore:
                     (run_id, f"training:{training_use.attempt_id}:started"),
                 ).fetchone()
                 fingerprint = loads(start[0])["batch_fingerprint"]
-                plans = self.connection.execute("SELECT payload_json FROM comparisons WHERE run_id=?", (run_id,)).fetchall()
-                allowed = {item["data_id"] for plan in plans for arm in loads(plan[0])["arms"].values()
+                allowed = {item["data_id"] for arm in self._frozen_batches(run_id, training_use.attempt_id)
                            if arm["fingerprint"] == fingerprint for item in arm["items"]}
                 if training_use.data_id not in allowed:
                     fail("training_use", "数据不属于该训练尝试的冻结批次。")
+                single = self.connection.execute("SELECT payload_json FROM events WHERE run_id=? AND event_id=?",
+                              (run_id, "training_plan:" + training_use.attempt_id)).fetchone()
+                if single is not None:
+                    items = loads(single[0])["batch"]["items"]
+                    if training_use.step > len(items) or items[training_use.step - 1]["data_id"] != training_use.data_id:
+                        fail("training_use.step", "单批计划必须按冻结顺序执行，每条轨迹只执行一次。")
+                    previous_uses = self.connection.execute("SELECT payload_json FROM events WHERE run_id=? AND kind='cost_recorded'", (run_id,)).fetchall()
+                    uses = [p["training_use"] for e in previous_uses if (p := loads(e[0])).get("training_use", {}).get("attempt_id") == training_use.attempt_id]
+                    if training_use.step != len(uses) + 1:
+                        fail("training_use.step", "步骤不能重复或跳过。恢复须复用原消耗事件编号。")
             overrun = bool(reservation["closed"]) or amount > reservation["remaining"]
             self.connection.execute("INSERT INTO costs VALUES (?,?,?,?,?)", (run_id, event_id, reservation_id, unit, amount))
             self.connection.execute("UPDATE reservations SET remaining=MAX(0,remaining-?) WHERE run_id=? AND reservation_id=?",
@@ -246,8 +297,7 @@ class StateStore:
                         (run_id, f"training:{attempt_id}:started")).fetchone()
             if loads(start[0])["batch_fingerprint"] != batch_fingerprint:
                 fail("resume", "恢复批次与原尝试不同。")
-            plans = self.connection.execute("SELECT payload_json FROM comparisons WHERE run_id=?", (run_id,)).fetchall()
-            batches = [arm for plan in plans for arm in loads(plan[0])["arms"].values()
+            batches = [arm for arm in self._frozen_batches(run_id, attempt_id)
                        if arm["fingerprint"] == batch_fingerprint]
             if not batches or completed_steps > len(batches[0]["items"]):
                 fail("resume", "检查点步骤数超过冻结批次。")
@@ -293,8 +343,7 @@ class StateStore:
             if phase == "started":
                 if previous is not None or self._run(run_id)["status"] != "planned":
                     fail("training", "只能从已保存计划启动新的训练尝试。")
-                plans = self.connection.execute("SELECT payload_json FROM comparisons WHERE run_id=?", (run_id,)).fetchall()
-                allowed = {arm["fingerprint"] for plan in plans for arm in loads(plan[0])["arms"].values()}
+                allowed = {arm["fingerprint"] for arm in self._frozen_batches(run_id, attempt_id)}
                 if batch_fingerprint not in allowed:
                     fail("batch_fingerprint", "批次不属于已保存的对照计划。")
             elif previous != "started":
@@ -309,13 +358,13 @@ class StateStore:
                 actual = sum(p["amount"] for e in uses if (p := loads(e[0])).get("training_use", {}).get("attempt_id") == attempt_id)
                 if result is None or result.actual_supervised_tokens != actual:
                     fail("training.result", "训练结果与实际使用账本不一致。")
-                plans = self.connection.execute("SELECT payload_json FROM comparisons WHERE run_id=?", (run_id,)).fetchall()
-                planned = {arm["supervised_tokens"] for plan in plans for arm in loads(plan[0])["arms"].values()
+                batches = self._frozen_batches(run_id, attempt_id)
+                planned = {arm["supervised_tokens"] for arm in batches
                            if arm["fingerprint"] == batch_fingerprint}
                 if actual not in planned or self._run(run_id)["status"] == "execution_error":
                     fail("training.result", "训练尚未完成计划监督量，或运行已发生错误。")
                 expected_usage = next({item["data_id"]: item["supervised_tokens"] for item in arm["items"]}
-                                      for plan in plans for arm in loads(plan[0])["arms"].values()
+                                      for arm in batches
                                       if arm["fingerprint"] == batch_fingerprint)
                 actual_usage = {}
                 for event in uses:

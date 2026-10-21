@@ -1,6 +1,7 @@
 """训练步骤日志。只恢复已发布检查点；不重放状态不明的步骤。"""
 
 import os
+import time
 import importlib.metadata
 from collections.abc import Callable
 from pathlib import Path
@@ -53,7 +54,17 @@ class StepJournal:
         save_state(pending / "state.pt")
         write_json(pending / "manifest.json", {"schema_version": "checkpoint-1", "step": step,
                    "identity": self.identity, "files": [{"name": "state.pt", "sha256": file_sha256(pending / "state.pt")}]})
-        pending.rename(final)
+        # Windows 文件扫描可能短暂锁住已关闭目录。只重试发布，不重做训练或保存。
+        for attempt in range(4):
+            if final.exists():
+                fail("checkpoint.publish", "目标检查点已存在，禁止覆盖。")
+            try:
+                pending.rename(final)
+                break
+            except PermissionError as exc:
+                if getattr(exc, "winerror", None) not in {5, 32} or attempt == 3:
+                    raise
+                time.sleep(0.05 * (attempt + 1))
         return ArtifactRef(str((final / "manifest.json").resolve()), file_sha256(final / "manifest.json"))
 
     def validate_resume(self, artifact: ArtifactRef) -> tuple[Path, int]:

@@ -24,6 +24,15 @@ class TokenMetrics:
     nll: float
     entropy: float
     spans: tuple[SpanMetric, ...]
+    ce_sum: float | None = None
+    entropy_sum: float | None = None
+
+
+@dataclass(frozen=True)
+class TokenScore:
+    position: int
+    ce: float
+    entropy: float
 
 
 def empirical_percentile(value: float, reference: list[float]) -> float:
