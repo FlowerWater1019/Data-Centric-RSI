@@ -1,6 +1,6 @@
 # RSI 实验内核
 
-当前版本为 0.6.0。框架已接入真实 MBPP 数据的单卡开发对照：导入、编译、评分、精确组批、LoRA 训练、完整步骤恢复、诊断和 Python 隔离评估。
+当前版本为 0.7.0。框架已接入真实 MBPP 数据的单卡开发对照：导入、编译、评分、精确组批、LoRA 训练、完整步骤恢复、诊断和 Python 隔离评估。
 
 pilot 命令执行真实分词、模型评分和 LoRA 更新。resume-pilot 从完整步骤边界恢复同一次训练。evaluate-pilot 执行独立的受限纯函数任务，并保存工程验收判定。三个命令都使用合成数据检查程序。
 
@@ -23,6 +23,8 @@ python -m rsi training-validation-demo --output runs/training-validation-demo --
 此命令是显式 mock 冒烟。它不更新真实参数，所有测量标为 synthetic_fixture。真实 tiny 集成测试在缺少可选依赖时明确跳过，不能由 mock 演示替代。
 
 本次测试、演示、跳过项和显存估算见 [第二阶段验证记录](docs/第二阶段验证记录-2026-10-21.md)。
+
+第二阶段已适配 0.7.0 的功能子包结构。合并和兼容验证见 [主分支同步验证记录](docs/第二阶段主分支同步验证-2026-10-22.md)。
 
 离线演示生成 10 条候选和 2 条参考轨迹。演示执行两次筛选，中间应用预设调度补丁。训练和任务执行均为 `NOT_RUN`。
 
@@ -54,32 +56,37 @@ python -m rsi validate --config configs/smoke.json --data examples/trajectories.
 
 ## 目录
 
+0.7.0 将原有 48 个业务模块移入 9 个功能子包。命令参数、配置格式和数据库格式保持不变。旧 Python 导入路径继续可用。新代码使用功能子包路径。完整结构、扩展入口和恢复约束见 [代码结构与维护](docs/代码结构与维护.md)。
+
+本次工程验证见 [代码结构调整验证记录](docs/代码结构调整验证记录-2026-10-20.md)。本轮未执行新训练。
+
 | 路径 | 内容 |
 | --- | --- |
-| rsi/contracts.py | 实验配置、模型引用与固定策略 |
-| rsi/settings.py | 训练、硬件和验收的明确字段类型 |
-| rsi/data.py | 轨迹、掩码、诊断位置和数据隔离校验 |
-| rsi/inspection.py | 共用的分数检查与校验报告 |
-| rsi/selection.py | 统一选择接口、随机排序、固定排序与约束组批 |
-| rsi/comparison.py | 对照计划的纯计算 |
-| rsi/schema.py | 数据库版本检查与新库建表 |
-| rsi/state.py | 输入快照、计划、事件、预算预留与实际消耗账本 |
-| rsi/backends.py | 训练与评估的字段接口 |
-| rsi/tokenization.py | 消息内容位置、真实分词与监督映射 |
-| rsi/scoring.py | 评分类型、参考分布与百分位 |
-| rsi/hf_backend.py | 本地模型加载、完整词表评分与单卡 LoRA |
-| rsi/pilot.py | 工程验证流程与实际训练记录 |
-| rsi/real_run.py、rsi/training_run.py | 真实对照准备与共用训练执行 |
-| rsi/packing.py | 完整轨迹的精确监督预算组批 |
-| rsi/scoring_run.py、rsi/diagnostics.py | 评分调用记录与固定集合诊断 |
-| rsi/python_diagnostics.py | 可选的 Python 关键字片段标注 |
-| rsi/reporting.py | 账本与逐任务证据复核、开发报告 |
-| rsi/artifacts.py | 模型与训练产物的内容校验 |
-| rsi/checkpoints.py、rsi/leases.py | 完整步骤检查点与运行目录单写入者锁 |
-| rsi/coding_tasks.py、rsi/bounded_python.py | 独立任务格式与受限整数解释器 |
-| rsi/coding_evaluation.py、rsi/evaluation_run.py | 逐任务证据与三组评估流程 |
-| rsi/acceptance.py | 任务级配对判定与能力保持检查 |
-| rsi/cli.py | 校验、初始化、计划、状态与导出命令 |
+| rsi/configuration/contracts.py | 实验配置、模型引用与固定策略 |
+| rsi/configuration/settings.py | 训练、硬件和验收的明确字段类型 |
+| rsi/datasets/data.py | 轨迹、掩码、诊断位置和数据隔离校验 |
+| rsi/curation/inspection.py | 共用的分数检查与校验报告 |
+| rsi/curation/selection.py | 统一选择接口、随机排序、固定排序与约束组批 |
+| rsi/curation/comparison.py | 对照计划的纯计算 |
+| rsi/storage/schema.py | 数据库版本检查与新库建表 |
+| rsi/storage/state.py | 输入快照、计划、事件、预算预留与实际消耗账本 |
+| rsi/models/backends.py | 训练与评估的字段接口 |
+| rsi/datasets/tokenization.py | 消息内容位置、真实分词与监督映射 |
+| rsi/models/scoring.py | 评分类型、参考分布与百分位 |
+| rsi/models/hf_backend.py | 本地模型加载、完整词表评分与单卡 LoRA |
+| rsi/workflows/pilot.py | 工程验证流程与实际训练记录 |
+| rsi/workflows/real_run.py、rsi/workflows/training_run.py | 真实对照准备与共用训练执行 |
+| rsi/curation/packing.py | 完整轨迹的精确监督预算组批 |
+| rsi/workflows/scoring_run.py、rsi/models/diagnostics.py | 评分调用记录与固定集合诊断 |
+| rsi/datasets/python_diagnostics.py | 可选的 Python 关键字片段标注 |
+| rsi/workflows/reporting.py | 账本与逐任务证据复核、开发报告 |
+| rsi/storage/artifacts.py | 模型与训练产物的内容校验 |
+| rsi/storage/checkpoints.py、rsi/storage/leases.py | 完整步骤检查点与运行目录单写入者锁 |
+| rsi/evaluation/coding_tasks.py、rsi/evaluation/bounded_python.py | 独立任务格式与受限整数解释器 |
+| rsi/evaluation/coding_evaluation.py、rsi/workflows/evaluation_run.py | 逐任务证据与三组评估流程 |
+| rsi/evaluation/acceptance.py | 任务级配对判定与能力保持检查 |
+| rsi/commands/cli.py | 校验、初始化、计划、状态与导出命令 |
+| rsi/storage/provenance.py | 递归源码清单与内容校验 |
 | configs/smoke.json | CPU 演示配置 |
 | configs/h200_8gpu.draft.json | 8×H200 目标配置草稿 |
 | examples/trajectories.demo.jsonl | 7 条合成轨迹及演示分数 |

@@ -5,15 +5,15 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
-from rsi.artifacts import write_json
-from rsi.attempt_run import run_training_attempt
-from rsi.execution_artifacts import complete_execution, verify_execution
-from rsi.execution_evaluation import evaluate_execution, parse_execution_evaluation, verify_isolation
-from rsi.fit_evaluation import evaluate_fit, parse_fit_evaluation
-from rsi.task_adapters import TaskSuiteV2
-from rsi.training_mock import MockTokenScorer, MockTrainingBackend
-from rsi.validation import ValidationError, canonical, digest, read_json
-from rsi.validation_run import evaluate_fit_stage, evaluate_execution_stage, run_dual_validation
+from rsi.storage.artifacts import write_json
+from rsi.workflows.attempt_run import run_training_attempt
+from rsi.storage.execution_artifacts import complete_execution, verify_execution
+from rsi.evaluation.execution_evaluation import evaluate_execution, parse_execution_evaluation, verify_isolation
+from rsi.evaluation.fit_evaluation import evaluate_fit, parse_fit_evaluation
+from rsi.evaluation.task_adapters import TaskSuiteV2
+from rsi.models.training_mock import MockTokenScorer, MockTrainingBackend
+from rsi.configuration.validation import ValidationError, canonical, digest, read_json
+from rsi.workflows.validation_run import evaluate_fit_stage, evaluate_execution_stage, run_dual_validation
 from tests import test_training_validation as fixtures
 
 
@@ -129,7 +129,7 @@ class TrainingHardeningTests(unittest.TestCase):
             if path == root:
                 raise OSError("injected final publication failure")
             return complete_execution(path, status, files)
-        with patch("rsi.validation_run.complete_execution", side_effect=fail_final_manifest), self.assertRaises(OSError):
+        with patch("rsi.workflows.validation_run.complete_execution", side_effect=fail_final_manifest), self.assertRaises(OSError):
             run_dual_validation(root, self.demo / "source/feedback_tasks.json", device="cpu", call_budget=2)
         self.assertTrue((root / "validation/round_feedback.json").exists())
         before = read_json(root / "validation/round_feedback.json")["costs"]
@@ -184,7 +184,7 @@ class TrainingHardeningTests(unittest.TestCase):
             return original(scorer, record)
         with patch.object(MockTokenScorer, "score_tokens", fail_second), self.assertRaises(RuntimeError):
             evaluate_fit_stage(root, self.work / "fit", candidate=False, device="cpu")
-        from rsi.state import StateStore
+        from rsi.storage.state import StateStore
         with StateStore(root / "state.sqlite3", create=False) as state:
             budget = state.snapshot("new_run")["budgets"]["scoring_tokens"]
             compilation = read_json(self.demo / "compiled/costs.json")["budgets"]["scoring_tokens"]["used"]
@@ -195,7 +195,7 @@ class TrainingHardeningTests(unittest.TestCase):
         self.assertTrue((self.work / "fit/failure.json").exists())
 
     def test_checkpoint_publish_retries_only_transient_rename(self) -> None:
-        from rsi.checkpoints import StepJournal
+        from rsi.storage.checkpoints import StepJournal
         journal = StepJournal(self.work, "identity")
         journal.begin(1)
         real_rename = Path.rename
@@ -208,43 +208,43 @@ class TrainingHardeningTests(unittest.TestCase):
                 raise error
             return real_rename(path, destination)
         save = unittest.mock.Mock(side_effect=lambda p: p.write_bytes(b"complete state"))
-        with patch.object(Path, "rename", transient), patch("rsi.checkpoints.time.sleep"):
+        with patch.object(Path, "rename", transient), patch("rsi.storage.checkpoints.time.sleep"):
             artifact = journal.publish(1, save)
         self.assertEqual(len(attempts), 2)
         save.assert_called_once()
         self.assertEqual(journal.validate_resume(artifact)[1], 1)
 
     def test_checkpoint_permanent_failure_preserves_pending_state(self) -> None:
-        from rsi.checkpoints import StepJournal
+        from rsi.storage.checkpoints import StepJournal
         journal = StepJournal(self.work, "identity")
         journal.begin(1)
         error = PermissionError("permanent Windows directory lock")
         error.winerror = 5
-        with patch.object(Path, "rename", side_effect=error) as rename, patch("rsi.checkpoints.time.sleep"), self.assertRaises(PermissionError):
+        with patch.object(Path, "rename", side_effect=error) as rename, patch("rsi.storage.checkpoints.time.sleep"), self.assertRaises(PermissionError):
             journal.publish(1, lambda p: p.write_bytes(b"complete state"))
         self.assertEqual(rename.call_count, 4)
         self.assertTrue((self.work / "checkpoints/.000001.pending/state.pt").exists())
         self.assertFalse((self.work / "checkpoints/000001").exists())
 
     def test_mock_compilation_cannot_feed_real_training(self) -> None:
-        from rsi.attempt_run import prepare_training_attempt
+        from rsi.workflows.attempt_run import prepare_training_attempt
         settings = read_json(self.demo / "source/settings.json")
         settings["mode"] = "hf_local"
         write_json(self.work / "real-settings.json", settings)
-        with patch("rsi.attempt_run.load_tokenizer", side_effect=AssertionError("must reject before loading")), self.assertRaisesRegex(ValidationError, "compiled.provenance.execution_mode"):
+        with patch("rsi.workflows.attempt_run.load_tokenizer", side_effect=AssertionError("must reject before loading")), self.assertRaisesRegex(ValidationError, "compiled.provenance.execution_mode"):
             prepare_training_attempt(self.demo / "compiled", self.demo / "selection", self.plan.selection_manifest_id,
                 self.demo / "source/model_location.json", self.work / "real-settings.json", self.work / "bad", "r", "a")
         self.assertFalse((self.work / "bad").exists())
 
     def test_provenance_rejects_mixed_sources_and_unknown_schema(self) -> None:
-        from rsi.training_inputs import TrainingProvenance
+        from rsi.datasets.training_inputs import TrainingProvenance
         raw = read_json(self.demo / "compiled/provenance.json")
         for key, value in (("source", "measured"), ("tokenizer_execution_mode", "hf_local"), ("schema_version", "unknown"), ("sources_hash", None)):
             with self.subTest(key=key), self.assertRaises(ValidationError):
                 TrainingProvenance.parse({**raw, key: value})
 
     def test_zero_supervision_is_missing_without_forward_pass(self) -> None:
-        from rsi.data import TrajectoryRecord
+        from rsi.datasets.data import TrajectoryRecord
         raw = self.selected[0].raw
         raw["supervision"]["loss_mask"] = [False] * self.selected[0].token_count
         raw["scores"] = None
@@ -257,13 +257,13 @@ class TrainingHardeningTests(unittest.TestCase):
         self.assertEqual(parse_fit_evaluation(result.to_dict()), result)
 
     def test_finite_token_values_cannot_overflow_aggregate(self) -> None:
-        from rsi.fit_evaluation import aggregate
-        from rsi.scoring import TokenScore
+        from rsi.evaluation.fit_evaluation import aggregate
+        from rsi.models.scoring import TokenScore
         with self.assertRaises(ValidationError):
             aggregate((TokenScore(1, 1e308, 1), TokenScore(2, 1e308, 1)))
 
     def test_malformed_artifact_reports_field_error(self) -> None:
-        from rsi.artifacts import verify_training_artifact
+        from rsi.storage.artifacts import verify_training_artifact
         for index, value in enumerate((None, [], {}, {"files": None}, {"files": []}, {"files": [None]}, {"files": [{"name": "x"}]})):
             reference = write_json(self.work / (str(index) + ".json"), value)
             with self.subTest(value=value), self.assertRaises(ValidationError):

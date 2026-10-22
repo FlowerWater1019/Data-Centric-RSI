@@ -13,27 +13,27 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from rsi.artifacts import file_sha256, write_json
-from rsi.attempt_run import load_attempt, prepare_training_attempt, run_training_attempt, resume_training_attempt
-from rsi.backends import ArtifactRef, TrainingUse, TrainingResult
-from rsi.checkpoints import TrainingPaused
-from rsi.contracts import ExperimentContract
-from rsi.data import TrajectoryRecord
-from rsi.execution_artifacts import verify_execution
-from rsi.execution_evaluation import evaluate_execution, parse_execution_evaluation, verify_isolation
-from rsi.execution_plan import freeze_training_plan
-from rsi.fit_evaluation import SkillEvidence, evaluate_fit, compare_fit, parse_fit_evaluation
-from rsi.labels import SkillOntology
-from rsi.round_feedback import build_round_feedback, parse_round_feedback
-from rsi.scoring import TokenScore
-from rsi.state import StateStore
-from rsi.task_adapters import TaskSuiteV2, verify_suite_isolation
-from rsi.training_compile import MockChatTokenizer
-from rsi.training_demo import run_demo, example_values, example_suite
-from rsi.training_inputs import bind_message_evidence, compile_training_sources
-from rsi.training_mock import MockTokenScorer
-from rsi.validation import ValidationError, canonical, digest, read_json, to_json_value
-from rsi.validation_run import evaluate_fit_stage, evaluate_execution_stage, run_dual_validation
+from rsi.storage.artifacts import file_sha256, write_json
+from rsi.workflows.attempt_run import load_attempt, prepare_training_attempt, run_training_attempt, resume_training_attempt
+from rsi.models.backends import ArtifactRef, TrainingUse, TrainingResult
+from rsi.storage.checkpoints import TrainingPaused
+from rsi.configuration.contracts import ExperimentContract
+from rsi.datasets.data import TrajectoryRecord
+from rsi.storage.execution_artifacts import verify_execution
+from rsi.evaluation.execution_evaluation import evaluate_execution, parse_execution_evaluation, verify_isolation
+from rsi.workflows.execution_plan import freeze_training_plan
+from rsi.evaluation.fit_evaluation import SkillEvidence, evaluate_fit, compare_fit, parse_fit_evaluation
+from rsi.datasets.labels import SkillOntology
+from rsi.evaluation.round_feedback import build_round_feedback, parse_round_feedback
+from rsi.models.scoring import TokenScore
+from rsi.storage.state import StateStore
+from rsi.evaluation.task_adapters import TaskSuiteV2, verify_suite_isolation
+from rsi.workflows.training_compile import MockChatTokenizer
+from rsi.workflows.training_demo import run_demo, example_values, example_suite
+from rsi.datasets.training_inputs import bind_message_evidence, compile_training_sources
+from rsi.models.training_mock import MockTokenScorer
+from rsi.configuration.validation import ValidationError, canonical, digest, read_json, to_json_value
+from rsi.workflows.validation_run import evaluate_fit_stage, evaluate_execution_stage, run_dual_validation
 
 
 class TrainingValidationTests(unittest.TestCase):
@@ -97,7 +97,7 @@ class TrainingValidationTests(unittest.TestCase):
 
     def test_training_does_not_call_selector_and_reentry_does_not_charge(self) -> None:
         root = self.prepare()
-        with patch("rsi.selection.build_batch", side_effect=AssertionError("must not select")), patch("rsi.policy_selection.select_with_policy", side_effect=AssertionError("must not rank")):
+        with patch("rsi.curation.selection.build_batch", side_effect=AssertionError("must not select")), patch("rsi.curation.policy_selection.select_with_policy", side_effect=AssertionError("must not rank")):
             first = run_training_attempt(root, "cpu")
             second = run_training_attempt(root, "cpu")
         self.assertEqual(first, second)
@@ -131,7 +131,7 @@ class TrainingValidationTests(unittest.TestCase):
 
     def test_backend_failure_preserves_actual_cost_and_failure(self) -> None:
         root = self.prepare()
-        from rsi.training_mock import MockTrainingBackend
+        from rsi.models.training_mock import MockTrainingBackend
         original = MockTrainingBackend.train
         def fail_after_step(backend, request):
             backend.stop = 1
@@ -342,7 +342,7 @@ class TrainingValidationTests(unittest.TestCase):
         def different_environment(*args, **kwargs):
             result = original(*args, **kwargs)
             return replace(result, environment_hash="other") if kwargs["candidate"] else result
-        with patch("rsi.validation_run.evaluate_execution_stage", side_effect=different_environment), self.assertRaises(ValidationError):
+        with patch("rsi.workflows.validation_run.evaluate_execution_stage", side_effect=different_environment), self.assertRaises(ValidationError):
             run_dual_validation(root, self.demo / "source/feedback_tasks.json", device="cpu", call_budget=2)
         self.assertFalse((root / "completion_manifest.json").exists())
 
@@ -359,7 +359,7 @@ class TrainingValidationTests(unittest.TestCase):
     def test_adapter_load_failure_releases_already_loaded_base(self) -> None:
         import weakref
         from types import SimpleNamespace
-        from rsi.hf_backend import HfRuntime
+        from rsi.models.hf_backend import HfRuntime
         references = []
         class Model:
             def __init__(self):
@@ -372,12 +372,12 @@ class TrainingValidationTests(unittest.TestCase):
         def fail_adapter(*args, **kwargs):
             raise RuntimeError("adapter load failure")
         fake_peft = SimpleNamespace(PeftModel=SimpleNamespace(from_pretrained=fail_adapter))
-        with patch("rsi.hf_backend.load_dependencies", return_value=(fake_torch, fake_transformers, fake_peft)), self.assertRaises(RuntimeError):
+        with patch("rsi.models.hf_backend.load_dependencies", return_value=(fake_torch, fake_transformers, fake_peft)), self.assertRaises(RuntimeError):
             HfRuntime("unused", "cpu", "fp32", "missing-adapter")
         self.assertIsNone(references[0]())
 
     def test_all_independent_cli_commands_and_exit_status(self) -> None:
-        from rsi.cli import main
+        from rsi.commands.cli import main
         def command(*args):
             stdout, stderr = io.StringIO(), io.StringIO()
             with redirect_stdout(stdout), redirect_stderr(stderr):
@@ -434,7 +434,7 @@ class TrainingValidationTests(unittest.TestCase):
         first = evaluate_fit_stage(root, output, candidate=False, device="cpu")
         second = evaluate_fit_stage(root, output, candidate=False, device="cpu")
         self.assertEqual(first, second)
-        with patch("rsi.validation_run.implementation_identity", return_value="changed"), self.assertRaises(ValidationError):
+        with patch("rsi.workflows.validation_run.implementation_identity", return_value="changed"), self.assertRaises(ValidationError):
             evaluate_fit_stage(root, output, candidate=False, device="cpu")
         with StateStore(root / "state.sqlite3", create=False) as state:
             compilation = read_json(self.demo / "compiled/costs.json")["budgets"]["scoring_tokens"]["used"]
@@ -444,7 +444,7 @@ class TrainingValidationTests(unittest.TestCase):
     def test_hand_computed_logits_shift_mask_entropy_and_legacy_span_count(self) -> None:
         import torch
         from types import SimpleNamespace
-        from rsi.hf_backend import HfRuntime
+        from rsi.models.hf_backend import HfRuntime
         raw = self.selected[0].raw
         count = len(raw["tokenization"]["token_ids"])
         raw["tokenization"]["token_ids"] = [0] * count

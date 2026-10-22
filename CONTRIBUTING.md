@@ -4,62 +4,66 @@
 
 ## 模块职责
 
+源码按配置、数据、筛选、模型、存储、评估、隔离执行、流程和命令分为 9 个子包。新增功能先确定归属，再选择相关接口。目录图和扩展步骤见 [代码结构与维护](docs/代码结构与维护.md)。
+
 | 模块 | 职责 | 修改时重点检查 |
 | --- | --- | --- |
-| `rsi/validation.py` | 基础解析、规范序列化和哈希 | 类型、非有限数值、重复字段 |
-| `rsi/settings.py` | 训练、硬件、评分版本和验收的字段类型 | 可空字段含义、字段兼容 |
-| `rsi/contracts.py` | 实验配置与版本约束 | 未知字段、预算、研究模式前置条件 |
-| `rsi/data.py` | 轨迹、监督掩码和数据隔离 | token 位置、数据角色、分数版本 |
-| `rsi/inspection.py` | 分数检查与结构校验报告 | 与选择器共用可选资格 |
-| `rsi/selection.py` | 策略排序与统一组批 | 确定性、配额、监督预算 |
-| `rsi/labels.py` | 独立标签、技能表与轨迹快照关联 | 严格解析、未知质量、模拟权限、不可覆盖旧字段 |
-| `rsi/policy.py` | 独立策略与派生合同 | 冻结预算、版本一致、不可变性 |
-| `rsi/policy_selection.py` | 标签资格检查与解释报告 | 当前评分、上下文身份、预算与配额失败区分 |
-| `rsi/feedback.py`、`rsi/history.py` | 模拟反馈与显式批次历史 | 计数分母、证据类型、成员引用 |
-| `rsi/dispatch.py` | 调度上下文与纯补丁应用 | 显式白名单、完整重校验、身份与证据一致 |
-| `rsi/selection_io.py` | 输入读取与本地产物发布 | 单写者、拒绝覆盖、清单校验、失败清理 |
-| `rsi/selection_demo.py`、`rsi/selection_cli.py` | 合成演示与命令适配 | 固定种子、无模型依赖、NOT_RUN 标记 |
-| `rsi/comparison.py` | 不依赖数据库的对照计划计算 | 等监督量、总预算、计划字段 |
-| `rsi/schema.py` | 数据库建表与版本检查 | 先检查已有格式，禁止隐式修复 |
-| `rsi/state.py` | SQLite 快照、事件和成本 | 事务、幂等、恢复、并发预算预留 |
-| `rsi/training_inputs.py`、`rsi/training_compile.py` | 标准来源编译与显式标签重绑 | 消息映射、真实 tokenizer、证据与掩码交集 |
-| `rsi/model_resolution.py`、`rsi/execution_plan.py` | 模型定位和单批冻结计划 | 内容身份、原顺序、LoRA 兼容与禁止重新选数 |
-| `rsi/attempt_run.py`、`rsi/training_mock.py` | 单次训练与显式测试后端 | 单计划事务、使用量、失败成本、完整步骤恢复 |
-| `rsi/fit_evaluation.py` | 整条轨迹与技能片段拟合 | 目标移位、完整词表熵、token 加权、缺失值 |
-| `rsi/task_adapters.py`、`rsi/execution_evaluation.py` | 版本化任务与单模型执行 | 隔离、隐藏测试、技能重叠、完整分母 |
-| `rsi/round_feedback.py`、`rsi/validation_run.py` | 四项测量和可复算反馈 | 来源、证据哈希、阶段缓存、完整测量后验收 |
-| `rsi/benchmark_run.py` | 独立最终测试 | 禁止进入反馈和验收、复用执行器 |
-| `rsi/execution_artifacts.py`、`rsi/training_cli.py`、`rsi/training_demo.py` | 执行清单、命令和演示 | 源码与依赖身份、拒绝覆盖、mock 不冒充实测 |
-| `rsi/backends.py` | 训练与评估接口 | 输入产物、实际成本、失败传播 |
-| `rsi/cli.py` | 命令参数与输出 | 退出码、错误信息、可重复调用 |
-| `rsi/tokenization.py` | 消息到 token 的映射 | 模板边界、错误动作排除、往返一致 |
-| `rsi/scoring.py` | 评分类型与参考百分位 | 参考组隔离、相同值的中点秩 |
-| `rsi/hf_backend.py` | 单卡模型执行 | 目标移位、实际监督量、产物保存 |
-| `rsi/pilot.py` | 工程流程编排 | 两组独立起点、事件与成本对应 |
-| `rsi/artifacts.py` | 内容哈希与产物校验 | 拒绝覆盖、文件变更、路径范围 |
-| `rsi/devices.py` | UUID 绑定与设备核验 | 拒绝数字绑定、错误型号和错误 UUID |
-| `rsi/checkpoints.py` | 步骤意图、检查点发布与恢复核对 | 不完整步骤、旧检查点、输入变更 |
-| `rsi/leases.py` | 同一运行目录的单写入者锁 | 并发拒绝、进程退出后释放 |
-| `rsi/coding_tasks.py` | 独立编程任务格式 | 非空测试、任务分组、最终测试隔离 |
-| `rsi/bounded_python.py` | 受限整数表达式解释 | 语法白名单、整数范围、任务失败 |
-| `rsi/coding_evaluation.py` | 生成与逐任务执行 | 完整分母、逐任务证据、失败保留 |
-| `rsi/evaluation_run.py` | 基线与两组候选的独立评估 | 模型身份、调用预算、任务清单 |
-| `rsi/acceptance.py` | 配对验收纯函数 | 相同任务、样本量、增益与能力保持 |
-| `rsi/mbpp.py` | 官方格式、划分与重复分组 | 划分边界、跨划分重复、代码只解析不执行 |
-| `rsi/dataset_import.py` | 来源冻结与参考解检查 | 先选子集、失败保留、最终测试不执行 |
-| `rsi/data_compile.py` | 数据包到现有轨迹接口 | 文件哈希、真实分词、禁止静默截断 |
-| `rsi/model_inputs.py` | 模型与 tokenizer 内容绑定 | 与 pilot 共用同一版本规则 |
-| `rsi/python_tasks.py` | 通用 Python 任务格式 | 非空断言测试、角色隔离 |
-| `rsi/sandbox.py` | 宿主侧隔离编排 | 启动探针、超时、输出上限、进程清理 |
-| `rsi/sandbox_worker.py` | 沙箱内可信启动器 | 先设上限与系统调用过滤，再执行代码 |
-| `rsi/isolated_evaluation.py` | 通用代码逐任务评估 | 测试调用记录、完整任务分母、基础设施错误 |
-| `rsi/packing.py` | 完整轨迹精确组批 | 与穷举结果一致、重复输入、预算无解、规模上限 |
-| `rsi/real_run.py` | 真实对照准备 | 产物哈希、评分预算、模型起点、禁止最终测试角色 |
-| `rsi/training_run.py` | 两种入口共用的训练执行与恢复 | 计划不重算、检查点与账本一致、已完成分支不重跑 |
-| `rsi/scoring_run.py` | 评分调用与成本记录 | 调用意图、异常留痕、实际消耗 |
-| `rsi/python_diagnostics.py` | 静态关键字诊断标注 | 注释和字符串排除、字符位置、训练掩码不变 |
-| `rsi/diagnostics.py` | 固定诊断集合聚合 | token 加权均值、缺失不等于零、技能分母 |
-| `rsi/reporting.py` | 开发报告生成 | 报告与账本一致、逐任务重算判定、成本范围 |
+| `rsi/configuration/validation.py` | 基础解析、规范序列化和哈希 | 类型、非有限数值、重复字段 |
+| `rsi/configuration/settings.py` | 训练、硬件、评分版本和验收的字段类型 | 可空字段含义、字段兼容 |
+| `rsi/configuration/contracts.py` | 实验配置与版本约束 | 未知字段、预算、研究模式前置条件 |
+| `rsi/datasets/data.py` | 轨迹、监督掩码和数据隔离 | token 位置、数据角色、分数版本 |
+| `rsi/curation/inspection.py` | 分数检查与结构校验报告 | 与选择器共用可选资格 |
+| `rsi/curation/selection.py` | 策略排序与统一组批 | 确定性、配额、监督预算 |
+| `rsi/datasets/labels.py` | 独立标签、技能表与轨迹快照关联 | 严格解析、未知质量、模拟权限、不可覆盖旧字段 |
+| `rsi/curation/policy.py` | 独立策略与派生合同 | 冻结预算、版本一致、不可变性 |
+| `rsi/curation/policy_selection.py` | 标签资格检查与解释报告 | 当前评分、上下文身份、预算与配额失败区分 |
+| `rsi/curation/feedback.py`、`rsi/curation/history.py` | 模拟反馈与显式批次历史 | 计数分母、证据类型、成员引用 |
+| `rsi/curation/dispatch.py` | 调度上下文与纯补丁应用 | 显式白名单、完整重校验、身份与证据一致 |
+| `rsi/curation/selection_io.py` | 输入读取与本地产物发布 | 单写者、拒绝覆盖、清单校验、失败清理 |
+| `rsi/curation/selection_demo.py`、`rsi/commands/selection_cli.py` | 合成演示与命令适配 | 固定种子、无模型依赖、NOT_RUN 标记 |
+| `rsi/curation/comparison.py` | 不依赖数据库的对照计划计算 | 等监督量、总预算、计划字段 |
+| `rsi/storage/schema.py` | 数据库建表与版本检查 | 先检查已有格式，禁止隐式修复 |
+| `rsi/storage/state.py` | SQLite 快照、事件和成本 | 事务、幂等、恢复、并发预算预留 |
+| `rsi/models/backends.py` | 训练与评估接口 | 输入产物、实际成本、失败传播 |
+| `rsi/commands/cli.py` | 命令参数与输出 | 退出码、错误信息、可重复调用 |
+| `rsi/datasets/tokenization.py` | 消息到 token 的映射 | 模板边界、错误动作排除、往返一致 |
+| `rsi/models/scoring.py` | 评分类型与参考百分位 | 参考组隔离、相同值的中点秩 |
+| `rsi/models/hf_backend.py` | 单卡模型执行 | 目标移位、实际监督量、产物保存 |
+| `rsi/workflows/pilot.py` | 工程流程编排 | 两组独立起点、事件与成本对应 |
+| `rsi/storage/artifacts.py` | 内容哈希与产物校验 | 拒绝覆盖、文件变更、路径范围 |
+| `rsi/models/devices.py` | UUID 绑定与设备核验 | 拒绝数字绑定、错误型号和错误 UUID |
+| `rsi/storage/checkpoints.py` | 步骤意图、检查点发布与恢复核对 | 不完整步骤、旧检查点、输入变更 |
+| `rsi/storage/leases.py` | 同一运行目录的单写入者锁 | 并发拒绝、进程退出后释放 |
+| `rsi/evaluation/coding_tasks.py` | 独立编程任务格式 | 非空测试、任务分组、最终测试隔离 |
+| `rsi/evaluation/bounded_python.py` | 受限整数表达式解释 | 语法白名单、整数范围、任务失败 |
+| `rsi/evaluation/coding_evaluation.py` | 生成与逐任务执行 | 完整分母、逐任务证据、失败保留 |
+| `rsi/workflows/evaluation_run.py` | 基线与两组候选的独立评估 | 模型身份、调用预算、任务清单 |
+| `rsi/evaluation/acceptance.py` | 配对验收纯函数 | 相同任务、样本量、增益与能力保持 |
+| `rsi/datasets/mbpp.py` | 官方格式、划分与重复分组 | 划分边界、跨划分重复、代码只解析不执行 |
+| `rsi/datasets/dataset_import.py` | 来源冻结与参考解检查 | 先选子集、失败保留、最终测试不执行 |
+| `rsi/datasets/data_compile.py` | 数据包到现有轨迹接口 | 文件哈希、真实分词、禁止静默截断 |
+| `rsi/models/model_inputs.py` | 模型与 tokenizer 内容绑定 | 与 pilot 共用同一版本规则 |
+| `rsi/evaluation/python_tasks.py` | 通用 Python 任务格式 | 非空断言测试、角色隔离 |
+| `rsi/execution/sandbox.py` | 宿主侧隔离编排 | 启动探针、超时、输出上限、进程清理 |
+| `rsi/execution/sandbox_worker.py` | 沙箱内可信启动器 | 先设上限与系统调用过滤，再执行代码 |
+| `rsi/evaluation/isolated_evaluation.py` | 通用代码逐任务评估 | 测试调用记录、完整任务分母、基础设施错误 |
+| `rsi/curation/packing.py` | 完整轨迹精确组批 | 与穷举结果一致、重复输入、预算无解、规模上限 |
+| `rsi/workflows/real_run.py` | 真实对照准备 | 产物哈希、评分预算、模型起点、禁止最终测试角色 |
+| `rsi/workflows/training_run.py` | 两种入口共用的训练执行与恢复 | 计划不重算、检查点与账本一致、已完成分支不重跑 |
+| `rsi/workflows/scoring_run.py` | 评分调用与成本记录 | 调用意图、异常留痕、实际消耗 |
+| `rsi/datasets/python_diagnostics.py` | 静态关键字诊断标注 | 注释和字符串排除、字符位置、训练掩码不变 |
+| `rsi/models/diagnostics.py` | 固定诊断集合聚合 | token 加权均值、缺失不等于零、技能分母 |
+| `rsi/workflows/reporting.py` | 开发报告生成 | 报告与账本一致、逐任务重算判定、成本范围 |
+| `rsi/storage/provenance.py` | 递归源码身份 | 子包覆盖、相对路径、内容变更 |
+| `rsi/_compat.py` | 旧模块导入兼容 | 模块对象一致、补丁行为、命令入口 |
+| `rsi/datasets/training_inputs.py`、`rsi/workflows/training_compile.py` | 标准来源编译与显式标签重绑 | 消息映射、真实 tokenizer、证据与掩码交集 |
+| `rsi/models/model_resolution.py`、`rsi/workflows/execution_plan.py` | 模型定位和单批冻结计划 | 内容身份、原顺序、LoRA 兼容与禁止重新选数 |
+| `rsi/workflows/attempt_run.py`、`rsi/models/training_mock.py` | 单次训练与显式测试后端 | 单计划事务、使用量、失败成本、完整步骤恢复 |
+| `rsi/evaluation/fit_evaluation.py` | 整条轨迹与技能片段拟合 | 目标移位、完整词表熵、token 加权、缺失值 |
+| `rsi/evaluation/task_adapters.py`、`rsi/evaluation/execution_evaluation.py` | 版本化任务与单模型执行 | 隔离、隐藏测试、技能重叠、完整分母 |
+| `rsi/evaluation/round_feedback.py`、`rsi/workflows/validation_run.py` | 四项测量和可复算反馈 | 来源、证据哈希、阶段缓存、完整测量后验收 |
+| `rsi/workflows/benchmark_run.py` | 独立最终测试 | 禁止进入反馈和验收、复用执行器 |
+| `rsi/storage/execution_artifacts.py`、`rsi/commands/training_cli.py`、`rsi/workflows/training_demo.py` | 执行清单、命令和演示 | 源码与依赖身份、拒绝覆盖、mock 不冒充实测 |
 
 配置与数据模块不调用训练后端。选择策略不直接写数据库。命令行层调用业务接口，不复制业务规则。接入真实后端时，外部执行与状态提交必须保持明确边界。
 
@@ -103,6 +107,10 @@ Python 代码使用四个空格缩进。使用明确的英文标识符。中文�
 当前没有配置自动格式检查、静态类型检查或持续集成。类型标注要求属于开发约定。不要将它写成已经通过的自动检查。引入这些工具时，需固定配置并验证现有代码。
 
 本次目录迁移保持包名 `rsi`、命令参数和数据格式不变。后续接口不兼容的改动需提供版本说明。数据库迁移需先验证备份与恢复方法。
+
+0.7.0 的新代码使用完整子包路径，例如 `from rsi.curation.selection import build_batch`。旧的 `rsi.selection` 指向同一实现模块。不要在新实现中继续使用旧路径。子包不集中导出所有模块，避免导入顺序耦合。
+
+`tests/test_package_layout.py` 检查兼容导入、旧路径补丁、命令入口、递归源码身份和沙箱启动器位置。训练恢复仍要求源码身份一致。0.6.0 运行需要保留当时的代码目录，不要用 0.7.0 恢复。重构不迁移已有运行产物。
 
 0.2.0 将部分内部 Python 字典接口改为字段类型。JSON 格式仍为 1.0，数据库版本仍为 1。转换方法见 [接口说明](docs/数据与接口说明.md) 的 Python 接口一节。
 

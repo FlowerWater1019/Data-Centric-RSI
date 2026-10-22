@@ -6,15 +6,15 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from rsi.artifacts import model_manifest, write_json
-from rsi.attempt_run import load_attempt
-from rsi.backends import TrainingRequest
-from rsi.checkpoints import TrainingPaused
-from rsi.hf_backend import HfLoraBackend, load_tokenizer
-from rsi.model_inputs import bound_model
-from rsi.model_resolution import LoadConfig, ModelLocation
-from rsi.training_demo import run_demo
-from rsi.validation import ValidationError, read_json, to_json_value
+from rsi.storage.artifacts import model_manifest, write_json
+from rsi.workflows.attempt_run import load_attempt
+from rsi.models.backends import TrainingRequest
+from rsi.storage.checkpoints import TrainingPaused
+from rsi.models.hf_backend import HfLoraBackend, load_tokenizer
+from rsi.models.model_inputs import bound_model
+from rsi.models.model_resolution import LoadConfig, ModelLocation
+from rsi.workflows.training_demo import run_demo
+from rsi.configuration.validation import ValidationError, read_json, to_json_value
 
 
 AVAILABLE = all(importlib.util.find_spec(name) is not None for name in ("torch", "transformers", "peft", "tokenizers"))
@@ -52,7 +52,7 @@ class TrainingHfOptionalTests(unittest.TestCase):
 
     def first(self):
         run_demo(self.root / "a", mode="hf_local", location_path=self.location_file)
-        from rsi.validation_run import completed_candidate
+        from rsi.workflows.validation_run import completed_candidate
         return completed_candidate(self.root / "a/attempt")
 
     def test_tiny_full_measurements_are_measured_not_fixture(self) -> None:
@@ -63,14 +63,14 @@ class TrainingHfOptionalTests(unittest.TestCase):
         log = read_json(self.root / "a/attempt/training/training.json")
         self.assertGreater(log["adapter_delta_l2"], 0)
         self.assertGreater(log["trainable_parameters"], 0)
-        from rsi.round_feedback import parse_round_feedback
+        from rsi.evaluation.round_feedback import parse_round_feedback
         feedback = parse_round_feedback(read_json(self.root / "a/attempt/validation/round_feedback.json"))
         self.assertEqual(feedback.source, "measured")
 
     def test_parent_adapter_advances_and_resume_matches_continuous(self) -> None:
         import torch
         from safetensors.torch import load_file
-        from rsi.artifacts import file_sha256, verify_training_artifact
+        from rsi.storage.artifacts import file_sha256, verify_training_artifact
         first = self.first()
         parent_file = Path(first.artifact.path).parent / "adapter/adapter_model.safetensors"
         parent_sha = file_sha256(parent_file)
