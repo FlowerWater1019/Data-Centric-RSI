@@ -8,6 +8,7 @@ from rsi.configuration.contracts import ExperimentContract
 from rsi.datasets.data import validate_dataset
 from rsi.storage.execution_artifacts import complete_execution, verify_execution
 from rsi.evaluation.execution_evaluation import evaluate_execution
+from rsi.evaluation.agent_tasks import AgentTaskRunner
 from rsi.models.hf_backend import HfRuntime, load_tokenizer
 from rsi.datasets.labels import SkillOntology
 from rsi.storage.leases import run_lease
@@ -21,7 +22,8 @@ from rsi.configuration.validation import choice, fail, integer, read_json, read_
 def evaluate_benchmark(bundle: str | Path, model_location: str | Path, suite_path: str | Path,
                        output: str | Path, *, mode: str, device: str, call_budget: int,
                        feedback_suite_path: str | Path,
-                       sandbox_path: str | Path | None = None, expected_gpu_name: str | None = None) -> dict[str, Any]:
+                       sandbox_path: str | Path | None = None, expected_gpu_name: str | None = None,
+                       agent_runner: AgentTaskRunner | None = None) -> dict[str, Any]:
     """输入编译快照只用于隔离与成本配置，不要求训练尝试或比较产物。"""
     choice(mode, "mode", {"mock", "hf_local"})
     integer(call_budget, "benchmark.call_budget", 1)
@@ -39,6 +41,9 @@ def evaluate_benchmark(bundle: str | Path, model_location: str | Path, suite_pat
     if feedback_suite.purpose != "feedback":
         fail("benchmark.feedback_suite.purpose", "隔离参照必须为 feedback 套件。")
     verify_suite_isolation(suite, feedback_suite)
+    agent_tasks = [t for t in suite.tasks if t.adapter_id == "agent_environment_v1"]
+    if agent_tasks and (agent_runner is None or len(agent_tasks) != len(suite.tasks)):
+        fail("benchmark.agent_runner", "Agent 最终测试需要显式接入 AgentTaskRunner，不能退回代码生成。")
     config = read_json(source / "config.json")
     config["model"] = to_json_value(location.model_ref)
     contract = ExperimentContract.parse(config)
@@ -66,7 +71,10 @@ def evaluate_benchmark(bundle: str | Path, model_location: str | Path, suite_pat
         kwargs = dict(source="measured" if mode == "hf_local" else "synthetic_fixture", state=state,
                       run_id="benchmark", executor=executor, records=records, sources=read_jsonl(source / "sources.jsonl"))
         try:
-            if mode == "hf_local":
+            if agent_tasks:
+                result = evaluate_execution(location.model_ref, suite, None, root / "execution", call_budget,
+                                             agent_runner=agent_runner, **kwargs)
+            elif mode == "hf_local":
                 tokenizer = load_tokenizer(location.base_model_path)
                 with HfRuntime(location.base_model_path, device, location.load.precision, location.adapter_path,
                                attention_implementation=location.load.attention_implementation) as runtime:

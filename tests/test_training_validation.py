@@ -32,6 +32,7 @@ from rsi.workflows.training_compile import MockChatTokenizer
 from rsi.workflows.training_demo import run_demo, example_values, example_suite
 from rsi.datasets.training_inputs import bind_message_evidence, compile_training_sources
 from rsi.models.training_mock import MockTokenScorer
+from rsi.datasets.content_identity import task_fingerprint
 from rsi.configuration.validation import ValidationError, canonical, digest, read_json, to_json_value
 from rsi.workflows.validation_run import evaluate_fit_stage, evaluate_execution_stage, run_dual_validation
 
@@ -268,7 +269,7 @@ class TrainingValidationTests(unittest.TestCase):
         suite = self.suite()
         prompts = []
         result = evaluate_execution(self.location.model_ref, suite,
-            lambda p, n, s: prompts.append(p) or "def solve(x,y):\n return x+y", self.work / "execution", 2, source="synthetic_fixture")
+            lambda p, n, s: prompts.append(p) or ("def solve(x,y):\n return x*y" if "multiply" in p else "def solve(x,y):\n return x+y"), self.work / "execution", 2, source="synthetic_fixture")
         self.assertEqual(result.overall.planned, 2)
         self.assertEqual(result.overall.passed, 2)
         self.assertTrue(all(stats.planned == 2 for _, stats in result.by_skill))
@@ -350,6 +351,7 @@ class TrainingValidationTests(unittest.TestCase):
         raw = self.suite().to_dict()
         raw["tasks"][0].update(adapter_id="bubblewrap_seccomp_v1", payload={"prompt": "Write solve(x,y).", "entry_point": "solve",
                        "setup": "", "tests": ["assert solve(1,2) == 3"]})
+        raw["tasks"][0]["content_fingerprint"] = task_fingerprint("bubblewrap_seccomp_v1", raw["tasks"][0]["payload"])
         suite = TaskSuiteV2.parse(raw, self.ontology)
         with self.assertRaises(ValidationError):
             evaluate_execution(self.location.model_ref, suite, lambda p, n, s: "def solve(x,y): return x+y",

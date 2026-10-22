@@ -1,0 +1,76 @@
+{
+  "schema_version": "execution-suite-v2",
+  "content_identity_rule": "task-content-v1",
+  "suite_id": "agent-final-smoke",
+  "revision": "synthetic-v2",
+  "purpose": "final_test",
+  "domain": "coding",
+  "ontology_version": "demo-coding-skills-v1",
+  "provenance": "synthetic_fixture",
+  "environment_id": "counter-environment-v1",
+  "generation": {
+    "strategy": "greedy",
+    "attempts": 1,
+    "max_new_tokens": 64,
+    "max_context_length": 512,
+    "seed": 42
+  },
+  "tasks": [
+    {
+      "task_id": "benchmark_0",
+      "source_problem_id": "benchmark_problem_0",
+      "split_group": "benchmark_split_0",
+      "duplicate_group": "benchmark_dup_0",
+      "group": "final_test",
+      "skills": [
+        "code_generation",
+        "error_analysis"
+      ],
+      "label_source": "synthetic_fixture",
+      "content_fingerprint": "45c4943eb27e38de9dd624fb6ecb5a47d6a26a8cc854bcb227dab35c49583f64",
+      "adapter_id": "agent_environment_v1",
+      "adapter_version": "1",
+      "payload": {
+        "prompt": "Increase the counter until it reaches 2",
+        "initial_state": {
+          "value": 0
+        },
+        "verifier": {
+          "id": "counter-goal-v1",
+          "config": {
+            "target": 2
+          }
+        },
+        "max_steps": 10
+      }
+    },
+    {
+      "task_id": "benchmark_1",
+      "source_problem_id": "benchmark_problem_1",
+      "split_group": "benchmark_split_1",
+      "duplicate_group": "benchmark_dup_1",
+      "group": "final_test",
+      "skills": [
+        "code_generation",
+        "error_analysis"
+      ],
+      "label_source": "synthetic_fixture",
+      "content_fingerprint": "0683da4acd15cb7a3f69ff08560ff7456b0e370e65ef3f25b9999dbc2d389cae",
+      "adapter_id": "agent_environment_v1",
+      "adapter_version": "1",
+      "payload": {
+        "prompt": "Increase the counter until it reaches 4",
+        "initial_state": {
+          "value": 0
+        },
+        "verifier": {
+          "id": "counter-goal-v1",
+          "config": {
+            "target": 4
+          }
+        },
+        "max_steps": 10
+      }
+    }
+  ]
+}

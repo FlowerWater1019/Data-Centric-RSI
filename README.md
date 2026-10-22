@@ -26,6 +26,10 @@ python -m rsi training-validation-demo --output runs/training-validation-demo --
 
 第二阶段已适配 0.7.0 的功能子包结构。合并和兼容验证见 [主分支同步验证记录](docs/第二阶段主分支同步验证-2026-10-22.md)。
 
+Agent 能力测评使用任务描述、初始环境和评分标准，由执行 Agent 自由行动。多步环境协议及其与 benchmark 共用核心的接入方式见 [Agent 能力测评接口](docs/Agent能力测评接口.md)。真实 Agent/环境后端尚需接入；当前代码生成演示不能作为 Agent 能力验证结果。
+
+PR #2 的缓存校验、内容隔离修复及本轮验证见 [审查修复验证记录](docs/PR2审查修复验证-2026-10-22.md)。
+
 离线演示生成 10 条候选和 2 条参考轨迹。演示执行两次筛选，中间应用预设调度补丁。训练和任务执行均为 `NOT_RUN`。
 
 ```text

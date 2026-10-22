@@ -16,6 +16,7 @@ from rsi.workflows.training_compile import MockChatTokenizer, compile_training_d
 from rsi.datasets.training_inputs import compile_training_sources
 from rsi.configuration.validation import digest, fail, read_json, to_json_value
 from rsi.workflows.validation_run import evaluate_fit_stage, run_dual_validation
+from rsi.datasets.content_identity import CONTENT_RULE, task_fingerprint
 
 
 def example_values() -> dict[str, Any]:
@@ -47,14 +48,20 @@ def example_values() -> dict[str, Any]:
 def example_suite(ontology: dict[str, Any], *, final_test: bool = False) -> dict[str, Any]:
     prefix = "benchmark" if final_test else "feedback"
     tasks = []
+    questions = (
+        ("Write solve(x, y) to subtract y from x.", [([7, 4], 3), ([-2, 7], -9)]),
+        ("Write solve(x, y) to return the larger integer.", [([2, 4], 4), ([-2, 7], 7)])) if final_test else (
+        ("Write solve(x, y) to add two integers.", [([1, 4], 5), ([-2, 7], 5)]),
+        ("Write solve(x, y) to multiply two integers.", [([2, 4], 8), ([-2, 7], -14)]))
     for i, group in enumerate(("final_test", "final_test") if final_test else ("target", "retention")):
+        prompt, cases = questions[i]
+        payload = {"prompt": prompt, "tests": [{"arguments": args, "expected": expected} for args, expected in cases]}
         tasks.append({"task_id": f"{prefix}_{i}", "source_problem_id": f"{prefix}_problem_{i}",
             "split_group": f"{prefix}_split_{i}", "duplicate_group": f"{prefix}_dup_{i}", "group": group,
             "skills": [s["id"] for s in ontology["skills"][:2]], "label_source": "synthetic_fixture",
-            "content_fingerprint": digest({"prefix": prefix, "index": i}), "adapter_id": "bounded_integer_expression_v1",
-            "adapter_version": "1", "payload": {"prompt": "Write solve(x, y) to add two integers.",
-                            "tests": [{"arguments": [i + 1, 4], "expected": i + 5}, {"arguments": [-2, 7], "expected": 5}]}})
-    return {"schema_version": "execution-suite-v1", "suite_id": prefix + "_smoke", "revision": "synthetic-v1",
+            "content_fingerprint": task_fingerprint("bounded_integer_expression_v1", payload), "adapter_id": "bounded_integer_expression_v1",
+            "adapter_version": "1", "payload": payload})
+    return {"schema_version": "execution-suite-v2", "content_identity_rule": CONTENT_RULE, "suite_id": prefix + "_smoke", "revision": "synthetic-v2",
         "purpose": "final_test" if final_test else "feedback", "domain": ontology["domain"],
         "ontology_version": ontology["ontology_version"], "provenance": "synthetic_fixture", "environment_id": "bounded-expression-v1",
         "generation": {"strategy": "greedy", "attempts": 1, "max_new_tokens": 64, "max_context_length": 512, "seed": 42}, "tasks": tasks}

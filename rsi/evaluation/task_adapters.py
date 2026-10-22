@@ -6,6 +6,8 @@ from typing import Any
 from rsi.evaluation.coding_tasks import CodingTask, TestCase
 from rsi.datasets.labels import SkillOntology, fields
 from rsi.evaluation.python_tasks import PythonTask
+from rsi.evaluation.agent_tasks import AgentTask
+from rsi.datasets.content_identity import CONTENT_RULE, problem_fingerprint, task_fingerprint
 from rsi.configuration.validation import array, choice, digest, fail, integer, obj, string, strings, to_json_value
 
 
@@ -39,7 +41,7 @@ class ExecutionTask:
     content_fingerprint: str
     adapter_id: str
     adapter_version: str
-    payload: CodingTask | PythonTask
+    payload: CodingTask | PythonTask | AgentTask
 
 
 @dataclass(frozen=True)
@@ -54,10 +56,14 @@ class TaskSuiteV2:
     environment_id: str
     generation: GenerationConfig
     tasks: tuple[ExecutionTask, ...]
+    content_identity_rule: str
 
     def to_dict(self) -> dict[str, Any]:
         value = to_json_value(self)
         for row, task in zip(value["tasks"], self.tasks):
+            if task.adapter_id == "agent_environment_v1":
+                row["payload"] = task.payload.to_dict()
+                continue
             keys = ("prompt", "tests") if task.adapter_id == "bounded_integer_expression_v1" else ("prompt", "entry_point", "setup", "tests")
             row["payload"] = {key: row["payload"][key] for key in keys}
         return value
@@ -65,7 +71,8 @@ class TaskSuiteV2:
     @classmethod
     def parse(cls, raw: Any, ontology: SkillOntology) -> "TaskSuiteV2":
         v = obj(raw, "suite", set(cls.__dataclass_fields__))
-        choice(v["schema_version"], "suite.schema_version", {"execution-suite-v1"})
+        choice(v["schema_version"], "suite.schema_version", {"execution-suite-v2"})
+        choice(v["content_identity_rule"], "suite.content_identity_rule", {CONTENT_RULE})
         purpose = choice(v["purpose"], "suite.purpose", {"feedback", "final_test"})
         if v["domain"] != ontology.domain or v["ontology_version"] != ontology.ontology_version:
             fail("suite.ontology_version", "领域或技能表版本不一致。")
@@ -78,7 +85,7 @@ class TaskSuiteV2:
             skills = strings(item["skills"], "suite.task.skills")
             if set(skills) - set(ontology.ids):
                 fail("suite.task.skills", "包含未定义技能。")
-            adapter = choice(item["adapter_id"], "suite.task.adapter_id", {"bounded_integer_expression_v1", "bubblewrap_seccomp_v1"})
+            adapter = choice(item["adapter_id"], "suite.task.adapter_id", {"bounded_integer_expression_v1", "bubblewrap_seccomp_v1", "agent_environment_v1"})
             choice(item["adapter_version"], "suite.task.adapter_version", {"1"})
             if adapter == "bounded_integer_expression_v1":
                 payload = fields(item["payload"], "suite.task.payload", "prompt tests")
@@ -87,10 +94,14 @@ class TaskSuiteV2:
                 if len(prompt) > 4096 or len(tests) > 100:
                     fail("suite.task.payload", "提示或测试数量超限。")
                 task = CodingTask(ids["task_id"], group, ids["split_group"], ids["duplicate_group"], prompt, tests)
-            else:
+            elif adapter == "bubblewrap_seccomp_v1":
                 payload = fields(item["payload"], "suite.task.payload", "prompt entry_point setup tests")
                 task = PythonTask.parse({**payload, **{k: ids[k] for k in ("task_id", "split_group", "duplicate_group")}, "group": group},
                                         allowed_groups=frozenset({"target", "retention", "final_test"}))
+            else:
+                task = AgentTask.parse(item["payload"])
+            if ids["content_fingerprint"] != task_fingerprint(adapter, item["payload"]):
+                fail("suite.task.content_fingerprint", "指纹必须由实际任务、环境与判定内容计算，不能使用任意编号。")
             tasks.append(ExecutionTask(**ids, group=group, skills=skills,
                  label_source=choice(item["label_source"], "suite.task.label_source", {"human", "dataset", "code", "synthetic_fixture"}),
                  adapter_id=adapter, adapter_version="1", payload=task))
@@ -107,9 +118,11 @@ class TaskSuiteV2:
                         fail("suite.tasks.isolation", "不同任务的身份或隔离分组存在交叉别名。")
         if purpose == "feedback" and {t.group for t in tasks} != {"target", "retention"}:
             fail("suite.tasks.group", "反馈必须同时包含 target 和 retention。")
+        if len({problem_fingerprint(t.payload.prompt) for t in tasks}) != len(tasks):
+            fail("suite.tasks.content", "套件包含重复的公开问题，不能把同题不同测试当独立任务。")
         return cls(v["schema_version"], string(v["suite_id"], "suite.suite_id"), string(v["revision"], "suite.revision"),
                    purpose, ontology.domain, ontology.ontology_version, string(v["provenance"], "suite.provenance"),
-                   string(v["environment_id"], "suite.environment_id"), GenerationConfig.parse(v["generation"]), tuple(tasks))
+                   string(v["environment_id"], "suite.environment_id"), GenerationConfig.parse(v["generation"]), tuple(tasks), CONTENT_RULE)
 
 
 def verify_suite_isolation(left: TaskSuiteV2, right: TaskSuiteV2) -> None:
@@ -118,5 +131,12 @@ def verify_suite_isolation(left: TaskSuiteV2, right: TaskSuiteV2) -> None:
     right_ids = {x for t in right.tasks for x in (t.task_id, t.source_problem_id)}
     left_groups = {x for t in left.tasks for x in (t.split_group, t.duplicate_group)}
     right_groups = {x for t in right.tasks for x in (t.split_group, t.duplicate_group)}
-    if left_ids & right_ids or left_groups & right_groups or {t.content_fingerprint for t in left.tasks} & {t.content_fingerprint for t in right.tasks}:
+    left_payloads = left.to_dict()["tasks"]
+    right_payloads = right.to_dict()["tasks"]
+    for row in (*left_payloads, *right_payloads):
+        if row["content_fingerprint"] != task_fingerprint(row["adapter_id"], row["payload"]):
+            fail("suite.content_fingerprint", "任务数据类的指纹与实际内容不一致。")
+    if (left_ids & right_ids or left_groups & right_groups or
+        {problem_fingerprint(t.payload.prompt) for t in left.tasks} & {problem_fingerprint(t.payload.prompt) for t in right.tasks} or
+        {t.content_fingerprint for t in left.tasks} & {t.content_fingerprint for t in right.tasks}):
         fail("suite.isolation", "最终套件与反馈套件存在已知重叠。")

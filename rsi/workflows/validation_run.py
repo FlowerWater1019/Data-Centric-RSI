@@ -12,6 +12,8 @@ from rsi.workflows.attempt_run import _result, load_attempt, verify_training_res
 from rsi.models.backends import ArtifactRef, TrainingResult
 from rsi.storage.execution_artifacts import complete_execution, implementation_identity, verify_execution
 from rsi.evaluation.execution_evaluation import evaluate_execution, parse_execution_evaluation
+from rsi.evaluation.execution_evaluation import verify_execution_evidence
+from rsi.evaluation.agent_tasks import AgentTaskRunner
 from rsi.evaluation.execution_evaluation import ExecutionEvaluation
 from rsi.workflows.execution_plan import TrainingPlan
 from rsi.curation.selection_io import SelectionInputs
@@ -128,27 +130,32 @@ def _evaluate_fit_stage(attempt: str | Path, output: str | Path, *, candidate: b
 
 def evaluate_execution_stage(attempt: str | Path, suite_path: str | Path, output: str | Path, *, candidate: bool,
                               device: str, call_budget: int, sandbox_path: str | Path | None = None,
-                              expected_gpu_name: str | None = None, _locked: bool = False) -> ExecutionEvaluation:
+                              expected_gpu_name: str | None = None, _locked: bool = False,
+                              agent_runner: AgentTaskRunner | None = None) -> ExecutionEvaluation:
     """串行执行同一训练尝试的评估；已完成阶段必须通过完整身份核验。"""
     with nullcontext() if _locked else run_lease(Path(attempt).resolve()):
         return _evaluate_execution_stage(attempt, suite_path, output, candidate=candidate, device=device, call_budget=call_budget,
-                                         sandbox_path=sandbox_path, expected_gpu_name=expected_gpu_name)
+                                         sandbox_path=sandbox_path, expected_gpu_name=expected_gpu_name, agent_runner=agent_runner)
 
 
 def _evaluate_execution_stage(attempt: str | Path, suite_path: str | Path, output: str | Path, *, candidate: bool,
                               device: str, call_budget: int, sandbox_path: str | Path | None = None,
-                              expected_gpu_name: str | None = None) -> ExecutionEvaluation:
+                              expected_gpu_name: str | None = None, agent_runner: AgentTaskRunner | None = None) -> ExecutionEvaluation:
     root, stage = Path(attempt).resolve(), Path(output).resolve()
     integer(call_budget, "execution.call_budget", 1)
     plan, inputs, location, hardware = model_for_stage(root, candidate, device, expected_gpu_name)
     suite = TaskSuiteV2.parse(read_json(suite_path), inputs.ontology)
     if suite.purpose != "feedback":
         fail("suite.purpose", "此入口仅用于反馈，final_test 使用 evaluate-benchmark。")
+    agent_tasks = [t for t in suite.tasks if t.adapter_id == "agent_environment_v1"]
+    if agent_tasks and (agent_runner is None or len(agent_tasks) != len(suite.tasks)):
+        fail("execution.agent_runner", "Agent 套件需要显式接入 AgentTaskRunner；流程入口不混用代码生成与 Agent 后端。")
     executor = BubblewrapExecutor(SandboxLimits.parse(read_json(sandbox_path))) if sandbox_path else None
     source = "measured" if plan.mode == "hf_local" else "synthetic_fixture"
     request = {"plan_hash": digest(plan), "suite_hash": digest(suite), "model_location_hash": location.identity,
                "implementation": implementation_identity(), "hardware": hardware, "source": source,
-               "sandbox_hash": digest(read_json(sandbox_path)) if sandbox_path else None, "call_budget": call_budget}
+               "sandbox_hash": digest(read_json(sandbox_path)) if sandbox_path else None, "call_budget": call_budget,
+               "agent_runner": agent_runner.identity if agent_runner else None}
     if stage.exists():
         manifest = verify_execution(stage)
         if read_json(stage / "stage_request.json") != request:
@@ -157,6 +164,7 @@ def _evaluate_execution_stage(attempt: str | Path, suite_path: str | Path, outpu
         if (manifest["status"] != cached.status or cached.model != location.model_ref or cached.source != source or
             cached.suite_hash != digest(suite) or cached.generation_hash != digest(suite.generation)):
             fail("execution.cache", "缓存结果与阶段请求的模型、任务、规则或来源不一致。")
+        verify_execution_evidence(stage, cached, suite, location.model_ref, source, call_budget, executor, agent_runner)
         return cached
     with StateStore(root / "state.sqlite3", create=False) as state:
         reservation = "execution_" + digest(str(stage))[:16]
@@ -164,7 +172,11 @@ def _evaluate_execution_stage(attempt: str | Path, suite_path: str | Path, outpu
             fail("execution.call_budget", "预算至少为 1。")
         state.reserve(plan.run_id, reservation, "evaluation_calls", min(call_budget, len(suite.tasks)))
         sources = read_jsonl(root / "inputs/bundle/sources.jsonl")
-        if plan.mode == "hf_local":
+        if agent_tasks:
+            result = evaluate_execution(location.model_ref, suite, None, stage, call_budget, source=source,
+                      state=state, run_id=plan.run_id, reservation=reservation, records=inputs.records, sources=sources,
+                      stage_request=request, agent_runner=agent_runner)
+        elif plan.mode == "hf_local":
             tokenizer = load_tokenizer(location.base_model_path)
             with HfRuntime(location.base_model_path, device, location.load.precision, location.adapter_path,
                            attention_implementation=location.load.attention_implementation) as runtime:
@@ -184,7 +196,8 @@ def _evaluate_execution_stage(attempt: str | Path, suite_path: str | Path, outpu
 
 def run_dual_validation(attempt: str | Path, suite_path: str | Path, *, device: str,
                          call_budget: int, rule_path: str | Path | None = None,
-                         sandbox_path: str | Path | None = None, expected_gpu_name: str | None = None) -> RoundFeedback:
+                         sandbox_path: str | Path | None = None, expected_gpu_name: str | None = None,
+                         parent_runner: AgentTaskRunner | None = None, candidate_runner: AgentTaskRunner | None = None) -> RoundFeedback:
     root = Path(attempt).resolve()
     with run_lease(root):
         plan, _, _ = load_attempt(root)
@@ -194,7 +207,8 @@ def run_dual_validation(attempt: str | Path, suite_path: str | Path, *, device: 
         for candidate, name in ((False, "parent"), (True, "candidate")):
             fits.append(evaluate_fit_stage(root, stage / ("fit-" + name), candidate=candidate, device=device, expected_gpu_name=expected_gpu_name, _locked=True))
             executions.append(evaluate_execution_stage(root, suite_path, stage / ("execution-" + name), candidate=candidate, device=device,
-                               call_budget=call_budget, sandbox_path=sandbox_path, expected_gpu_name=expected_gpu_name, _locked=True))
+                               call_budget=call_budget, sandbox_path=sandbox_path, expected_gpu_name=expected_gpu_name, _locked=True,
+                               agent_runner=candidate_runner if candidate else parent_runner))
         evidence = []
         for kind, value, path in (("fit_parent", fits[0], stage / "fit-parent/fit.json"),
                 ("fit_candidate", fits[1], stage / "fit-candidate/fit.json"),

@@ -61,6 +61,7 @@
 | `rsi/workflows/attempt_run.py`、`rsi/models/training_mock.py` | 单次训练与显式测试后端 | 单计划事务、使用量、失败成本、完整步骤恢复 |
 | `rsi/evaluation/fit_evaluation.py` | 整条轨迹与技能片段拟合 | 目标移位、完整词表熵、token 加权、缺失值 |
 | `rsi/evaluation/task_adapters.py`、`rsi/evaluation/execution_evaluation.py` | 版本化任务与单模型执行 | 隔离、隐藏测试、技能重叠、完整分母 |
+| `rsi/datasets/content_identity.py`、`rsi/evaluation/agent_tasks.py` | 内容身份与多步 Agent 环境协议 | 实际内容绑定、环境初态、隐藏判定器、动作轨迹与资源释放 |
 | `rsi/evaluation/round_feedback.py`、`rsi/workflows/validation_run.py` | 四项测量和可复算反馈 | 来源、证据哈希、阶段缓存、完整测量后验收 |
 | `rsi/workflows/benchmark_run.py` | 独立最终测试 | 禁止进入反馈和验收、复用执行器 |
 | `rsi/storage/execution_artifacts.py`、`rsi/commands/training_cli.py`、`rsi/workflows/training_demo.py` | 执行清单、命令和演示 | 源码与依赖身份、拒绝覆盖、mock 不冒充实测 |
