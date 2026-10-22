@@ -1,0 +1,18 @@
+{
+  "schema_version": "model-location-v1",
+  "model_ref": {
+    "checkpoint_id": "mock_parent_explicit_fixture",
+    "base_revision": "base_demo_v1",
+    "adapter_revision": "none",
+    "tokenizer_revision": "character_fixture_v1",
+    "template_revision": "fixture_template_v1"
+  },
+  "base_model_path": ".",
+  "adapter_manifest": null,
+  "load": {
+    "precision": "fp32",
+    "attention_implementation": "eager",
+    "local_files_only": true,
+    "trust_remote_code": false
+  }
+}

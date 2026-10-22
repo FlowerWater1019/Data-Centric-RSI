@@ -1,0 +1,76 @@
+{
+  "schema_version": "execution-suite-v2",
+  "content_identity_rule": "task-content-v1",
+  "suite_id": "agent-feedback-smoke",
+  "revision": "synthetic-v2",
+  "purpose": "feedback",
+  "domain": "coding",
+  "ontology_version": "demo-coding-skills-v1",
+  "provenance": "synthetic_fixture",
+  "environment_id": "counter-environment-v1",
+  "generation": {
+    "strategy": "greedy",
+    "attempts": 1,
+    "max_new_tokens": 64,
+    "max_context_length": 512,
+    "seed": 42
+  },
+  "tasks": [
+    {
+      "task_id": "feedback_0",
+      "source_problem_id": "feedback_problem_0",
+      "split_group": "feedback_split_0",
+      "duplicate_group": "feedback_dup_0",
+      "group": "target",
+      "skills": [
+        "code_generation",
+        "error_analysis"
+      ],
+      "label_source": "synthetic_fixture",
+      "content_fingerprint": "ec4d48a3af5ff5fbdb75556d6788bb482b0b9e0b5702091392ff91b8163d8897",
+      "adapter_id": "agent_environment_v1",
+      "adapter_version": "1",
+      "payload": {
+        "prompt": "Increase the counter until it reaches 3",
+        "initial_state": {
+          "value": 0
+        },
+        "verifier": {
+          "id": "counter-goal-v1",
+          "config": {
+            "target": 3
+          }
+        },
+        "max_steps": 10
+      }
+    },
+    {
+      "task_id": "feedback_1",
+      "source_problem_id": "feedback_problem_1",
+      "split_group": "feedback_split_1",
+      "duplicate_group": "feedback_dup_1",
+      "group": "retention",
+      "skills": [
+        "code_generation",
+        "error_analysis"
+      ],
+      "label_source": "synthetic_fixture",
+      "content_fingerprint": "11b4c59f72c3d18b73cb74f067582607b270a8a33529a6a0bae6ca505bc92e19",
+      "adapter_id": "agent_environment_v1",
+      "adapter_version": "1",
+      "payload": {
+        "prompt": "Increase the counter until it reaches 5",
+        "initial_state": {
+          "value": 0
+        },
+        "verifier": {
+          "id": "counter-goal-v1",
+          "config": {
+            "target": 5
+          }
+        },
+        "max_steps": 10
+      }
+    }
+  ]
+}

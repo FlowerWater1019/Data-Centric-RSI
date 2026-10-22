@@ -1,0 +1,30 @@
+{
+  "schema_version": "training-attempt-v1",
+  "mode": "mock",
+  "training": {
+    "backend": "hf_lora",
+    "world_size": 1,
+    "precision": "fp32",
+    "learning_rate": 0.001,
+    "lora_rank": 2,
+    "max_sequence_length": 512,
+    "per_device_batch_size": 1,
+    "gradient_accumulation_steps": 1,
+    "optimizer_state": "fresh_per_attempt",
+    "scheduler_state": "fresh_per_attempt"
+  },
+  "lora": {
+    "targets": [
+      "q_proj",
+      "v_proj"
+    ],
+    "alpha": 4.0,
+    "dropout": 0.0
+  },
+  "load": {
+    "precision": "fp32",
+    "attention_implementation": "eager",
+    "local_files_only": true,
+    "trust_remote_code": false
+  }
+}

@@ -1,7 +1,12 @@
 """训练与评估的字段接口。执行实现位于各后端模块。"""
 
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from rsi.models.model_resolution import LoraConfig, LoadConfig
 
 from rsi.configuration.contracts import ModelRef
 from rsi.curation.selection import BatchManifest
@@ -26,6 +31,9 @@ class TrainingRequest:
     batch: BatchManifest
     training_config: TrainingConfig
     resume_artifact: ArtifactRef | None = None
+    lora_config: LoraConfig | None = None
+    load_config: LoadConfig | None = None
+    model_location_hash: str | None = None
 
 
 @dataclass(frozen=True)

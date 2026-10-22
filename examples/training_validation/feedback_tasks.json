@@ -1,0 +1,88 @@
+{
+  "content_identity_rule": "task-content-v1",
+  "domain": "coding",
+  "environment_id": "bounded-expression-v1",
+  "generation": {
+    "attempts": 1,
+    "max_context_length": 512,
+    "max_new_tokens": 64,
+    "seed": 42,
+    "strategy": "greedy"
+  },
+  "ontology_version": "demo-coding-skills-v1",
+  "provenance": "synthetic_fixture",
+  "purpose": "feedback",
+  "revision": "synthetic-v2",
+  "schema_version": "execution-suite-v2",
+  "suite_id": "feedback_smoke",
+  "tasks": [
+    {
+      "adapter_id": "bounded_integer_expression_v1",
+      "adapter_version": "1",
+      "content_fingerprint": "bc766529a126ef7f55dc0e4f918ce7adf2d1d046560532f99efeac3860a7230d",
+      "duplicate_group": "feedback_dup_0",
+      "group": "target",
+      "label_source": "synthetic_fixture",
+      "payload": {
+        "prompt": "Write solve(x, y) to add two integers.",
+        "tests": [
+          {
+            "arguments": [
+              1,
+              4
+            ],
+            "expected": 5
+          },
+          {
+            "arguments": [
+              -2,
+              7
+            ],
+            "expected": 5
+          }
+        ]
+      },
+      "skills": [
+        "code_generation",
+        "error_analysis"
+      ],
+      "source_problem_id": "feedback_problem_0",
+      "split_group": "feedback_split_0",
+      "task_id": "feedback_0"
+    },
+    {
+      "adapter_id": "bounded_integer_expression_v1",
+      "adapter_version": "1",
+      "content_fingerprint": "80fb97ce2c06b77f100c30cef0d2a12660a9d4f7851539ccbb9e006fc26379fb",
+      "duplicate_group": "feedback_dup_1",
+      "group": "retention",
+      "label_source": "synthetic_fixture",
+      "payload": {
+        "prompt": "Write solve(x, y) to multiply two integers.",
+        "tests": [
+          {
+            "arguments": [
+              2,
+              4
+            ],
+            "expected": 8
+          },
+          {
+            "arguments": [
+              -2,
+              7
+            ],
+            "expected": -14
+          }
+        ]
+      },
+      "skills": [
+        "code_generation",
+        "error_analysis"
+      ],
+      "source_problem_id": "feedback_problem_1",
+      "split_group": "feedback_split_1",
+      "task_id": "feedback_1"
+    }
+  ]
+}

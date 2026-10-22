@@ -12,7 +12,7 @@ from rsi.models.backends import ArtifactRef, TrainingRequest, TrainingResult
 from rsi.configuration.contracts import ModelRef
 from rsi.storage.checkpoints import StepJournal, TrainingPaused, request_identity
 from rsi.datasets.data import TrajectoryRecord
-from rsi.models.scoring import SpanMetric, TokenMetrics
+from rsi.models.scoring import SpanMetric, TokenMetrics, TokenScore
 from rsi.configuration.validation import fail, digest
 
 
@@ -48,6 +48,7 @@ class HfRuntime:
 
     def __init__(
         self, model_path: str | Path, device: str, precision: str, adapter_path: str | Path | None = None,
+        *, adapter_trainable: bool = False, attention_implementation: str = "eager",
     ) -> None:
         self.torch, transformers, peft = load_dependencies()
         if device != "cpu" and not device.startswith("cuda:"):
@@ -66,13 +67,17 @@ class HfRuntime:
         dtype = self.torch.bfloat16 if precision == "bf16" else self.torch.float32
         self.model = transformers.AutoModelForCausalLM.from_pretrained(
             str(model_path), local_files_only=True, trust_remote_code=False,
-            torch_dtype=dtype, attn_implementation="eager",
+            torch_dtype=dtype, attn_implementation=attention_implementation,
         ).to(device)
         self.model.config.use_cache = False
         if adapter_path is not None:
-            self.model = peft.PeftModel.from_pretrained(
-                self.model, str(adapter_path), is_trainable=False, local_files_only=True,
-            )
+            try:
+                self.model = peft.PeftModel.from_pretrained(
+                    self.model, str(adapter_path), is_trainable=adapter_trainable, local_files_only=True,
+                )
+            except BaseException:
+                self.__exit__()
+                raise
 
     def __enter__(self) -> "HfRuntime":
         return self
@@ -83,8 +88,8 @@ class HfRuntime:
         if self.device.startswith("cuda:"):
             self.torch.cuda.empty_cache()
 
-    def score(self, record: TrajectoryRecord) -> TokenMetrics:
-        """计算有效目标上的完整词表 NLL、熵和诊断 CE。"""
+    def score_tokens(self, record: TrajectoryRecord) -> tuple[TokenScore, ...]:
+        """有效监督位置的逐 token CE 和完整词表熵。仅评估，不修改掩码。"""
         if record.role == "final_test":
             fail(record.data_id, "最终测试数据不能进入筛选评分。")
         torch = self.torch
@@ -104,14 +109,24 @@ class HfRuntime:
                 entropy = -(log_prob.exp() * log_prob).sum(dim=-1)
                 ce_values.extend(ce.cpu().tolist())
                 entropy_values.extend(entropy.cpu().tolist())
-        ce_by_position = dict(zip((p + 1 for p in prediction_positions), ce_values))
+        return tuple(TokenScore(position + 1, ce, entropy) for position, ce, entropy in
+                     zip(prediction_positions, ce_values, entropy_values))
+
+    def score(self, record: TrajectoryRecord) -> TokenMetrics:
+        """复用逐 token 计算，保持旧评分接口和诊断语义。"""
+        values = self.score_tokens(record)
+        raw = record.raw
+        ce_values = [v.ce for v in values]
+        entropy_values = [v.entropy for v in values]
+        ce_by_position = {v.position: v.ce for v in values}
         spans = []
         for span in raw["diagnostic_spans"]:
-            values = [ce_by_position[i] for i in range(span["token_start"], span["token_end"])
+            span_values = [ce_by_position[i] for i in range(span["token_start"], span["token_end"])
                       if i in ce_by_position]
-            spans.append(SpanMetric(span["skill"], len(values), sum(values), sum(values) / len(values)))
-        return TokenMetrics(record.data_id, len(targets), record.token_count,
-                            sum(ce_values) / len(targets), sum(entropy_values) / len(targets), tuple(spans))
+            spans.append(SpanMetric(span["skill"], len(span_values), sum(span_values), sum(span_values) / len(span_values)))
+        return TokenMetrics(record.data_id, len(values), record.token_count,
+                            sum(ce_values) / len(values), sum(entropy_values) / len(values), tuple(spans),
+                            sum(ce_values), sum(entropy_values))
 
     def generate_code(self, tokenizer: Any, prompt: str, max_new_tokens: int, max_length: int) -> str:
         """执行一次贪心生成。测试答案不会传入提示。拒绝截断任务提示。"""
@@ -137,18 +152,35 @@ class HfLoraBackend:
         output_root: str | Path, device: str,
         on_step: Callable[[int, TrajectoryRecord, int], None],
         stop_after_step: int | None = None,
+        parent_adapter: ArtifactRef | None = None,
     ) -> None:
         self.model_path, self.model_ref = Path(model_path), model_ref
         self.records = {r.data_id: r for r in records}
         self.output_root, self.device, self.on_step = Path(output_root), device, on_step
         self.stop_after_step = stop_after_step
+        self.parent_adapter = parent_adapter
 
     def train(self, request: TrainingRequest) -> TrainingResult:
         config = request.training_config
         if request.starting_model != self.model_ref or request.batch.model != self.model_ref:
             fail("model", "请求与批次必须使用相同的已核验模型起点。")
+        from rsi.storage.artifacts import verify_training_artifact
+        from rsi.models.model_resolution import LoraConfig
+        from rsi.configuration.validation import read_json
+        lora_config = request.lora_config or LoraConfig(alpha=2 * (config.lora_rank or 0))
+        parent_path = None
         if self.model_ref.adapter_revision != "none":
-            fail("adapter_revision", "当前工程适配器只支持无已有适配器的起点。")
+            if self.parent_adapter is None or self.parent_adapter.sha256 != self.model_ref.adapter_revision:
+                fail("adapter_revision", "已有父 adapter 必须提供匹配的内容清单。")
+            verify_training_artifact(self.parent_adapter)
+            parent_path = Path(self.parent_adapter.path).parent / "adapter"
+            adapter_config = read_json(parent_path / "adapter_config.json")
+            if (adapter_config.get("r"), set(adapter_config.get("target_modules", [])),
+                adapter_config.get("lora_alpha"), adapter_config.get("lora_dropout")) != (
+                config.lora_rank, set(lora_config.targets), lora_config.alpha, lora_config.dropout):
+                fail("lora", "继续训练配置与父 adapter 不兼容。")
+        elif self.parent_adapter is not None:
+            fail("adapter_revision", "无 adapter 的起点不能注入其他父 adapter。")
         if config.backend != "hf_lora" or (config.world_size, config.per_device_batch_size,
                                            config.gradient_accumulation_steps) != (1, 1, 1):
             fail("training", "当前适配器只支持 hf_lora、单卡、单样本、无梯度累积。")
@@ -182,14 +214,23 @@ class HfLoraBackend:
         torch, _, peft = load_dependencies()
         random.seed(request.batch.seed)
         torch.manual_seed(request.batch.seed)
-        with HfRuntime(self.model_path, self.device, config.precision) as runtime:
+        with HfRuntime(self.model_path, self.device, config.precision, parent_path,
+                       adapter_trainable=parent_path is not None,
+                       attention_implementation=request.load_config.attention_implementation if request.load_config else "eager") as runtime:
+            matches = {target: [name for name, _ in runtime.model.named_modules()
+                       if name == target or name.endswith("." + target)] for target in lora_config.targets}
+            if any(not names for names in matches.values()):
+                fail("lora.targets", "部分目标模块未匹配实际模型。")
             lora = peft.LoraConfig(
-                task_type="CAUSAL_LM", r=config.lora_rank, lora_alpha=2 * config.lora_rank,
-                lora_dropout=0.0, target_modules=["q_proj", "v_proj"], bias="none",
+                task_type="CAUSAL_LM", r=config.lora_rank, lora_alpha=lora_config.alpha,
+                lora_dropout=lora_config.dropout, target_modules=list(lora_config.targets), bias="none",
             )
-            runtime.model = peft.get_peft_model(runtime.model, lora)
+            if parent_path is None:
+                runtime.model = peft.get_peft_model(runtime.model, lora)
             model = runtime.model
             trainable = [p for p in model.parameters() if p.requires_grad]
+            if not trainable:
+                fail("lora", "可训练参数为空。")
             initial = [p.detach().float().cpu().clone() for p in trainable]
             optimizer = torch.optim.AdamW(trainable, lr=config.learning_rate, weight_decay=0.0)
             scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda _: 1.0)
@@ -274,13 +315,19 @@ class HfLoraBackend:
                 "context_tokens": sum(r.token_count for r in selected),
                 "update_seconds": sum(row["update_seconds"] for row in losses),
                 "diagnostics_affect_loss": False,
-                "lora": {"rank": config.lora_rank, "alpha": 2 * config.lora_rank,
-                         "dropout": 0.0, "targets": ["q_proj", "v_proj"]},
+                "lora": {"rank": config.lora_rank, "alpha": lora_config.alpha,
+                         "dropout": lora_config.dropout, "targets": list(lora_config.targets)},
+                "parent_model": self.model_ref.__dict__,
             })
+        if self.parent_adapter is not None:
+            verify_training_artifact(self.parent_adapter)
         files = [{"name": str(p.relative_to(output)), "sha256": file_sha256(p)}
-                 for p in sorted(output.rglob("*")) if p.is_file()]
-        artifact = write_json(output / "manifest.json", {"attempt_id": request.attempt_id,
-                              "contract_hash": request.contract_hash, "files": files})
+                 for p in sorted(output.rglob("*")) if p.is_file() and
+                 (request.model_location_hash is None or p.is_relative_to(output / "adapter"))]
+        # 独立训练的模型引用只绑定 adapter 文件。步骤耗时和优化器不改变模型内容身份。
+        manifest = {"files": files, "parent_model": self.model_ref.__dict__} if request.model_location_hash else {
+                    "attempt_id": request.attempt_id, "contract_hash": request.contract_hash, "files": files}
+        artifact = write_json(output / "manifest.json", manifest)
         model_ref = ModelRef("candidate_" + artifact.sha256, self.model_ref.base_revision,
                              artifact.sha256, self.model_ref.tokenizer_revision, self.model_ref.template_revision)
         return TrainingResult(model_ref, artifact, actual, diagnostics)

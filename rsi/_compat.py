@@ -57,6 +57,22 @@ LEGACY_MODULES = MappingProxyType({
     "rsi.tokenization": "rsi.datasets.tokenization",
     "rsi.training_run": "rsi.workflows.training_run",
     "rsi.validation": "rsi.configuration.validation",
+    'rsi.attempt_run': 'rsi.workflows.attempt_run',
+    'rsi.benchmark_run': 'rsi.workflows.benchmark_run',
+    'rsi.execution_artifacts': 'rsi.storage.execution_artifacts',
+    'rsi.execution_evaluation': 'rsi.evaluation.execution_evaluation',
+    'rsi.execution_plan': 'rsi.workflows.execution_plan',
+    'rsi.fit_evaluation': 'rsi.evaluation.fit_evaluation',
+    'rsi.model_resolution': 'rsi.models.model_resolution',
+    'rsi.round_feedback': 'rsi.evaluation.round_feedback',
+    'rsi.task_adapters': 'rsi.evaluation.task_adapters',
+    'rsi.training_cli': 'rsi.commands.training_cli',
+    'rsi.training_compile': 'rsi.workflows.training_compile',
+    'rsi.training_config': 'rsi.configuration.training_config',
+    'rsi.training_demo': 'rsi.workflows.training_demo',
+    'rsi.training_inputs': 'rsi.datasets.training_inputs',
+    'rsi.training_mock': 'rsi.models.training_mock',
+    'rsi.validation_run': 'rsi.workflows.validation_run',
 })
 
 

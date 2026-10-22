@@ -1,0 +1,88 @@
+{
+  "content_identity_rule": "task-content-v1",
+  "domain": "coding",
+  "environment_id": "bounded-expression-v1",
+  "generation": {
+    "attempts": 1,
+    "max_context_length": 512,
+    "max_new_tokens": 64,
+    "seed": 42,
+    "strategy": "greedy"
+  },
+  "ontology_version": "demo-coding-skills-v1",
+  "provenance": "synthetic_fixture",
+  "purpose": "final_test",
+  "revision": "synthetic-v2",
+  "schema_version": "execution-suite-v2",
+  "suite_id": "benchmark_smoke",
+  "tasks": [
+    {
+      "adapter_id": "bounded_integer_expression_v1",
+      "adapter_version": "1",
+      "content_fingerprint": "9dc8ab7d5d3198aab3d6f4106570c7193c82ddcc7a34b45be62969a9117f482d",
+      "duplicate_group": "benchmark_dup_0",
+      "group": "final_test",
+      "label_source": "synthetic_fixture",
+      "payload": {
+        "prompt": "Write solve(x, y) to subtract y from x.",
+        "tests": [
+          {
+            "arguments": [
+              7,
+              4
+            ],
+            "expected": 3
+          },
+          {
+            "arguments": [
+              -2,
+              7
+            ],
+            "expected": -9
+          }
+        ]
+      },
+      "skills": [
+        "code_generation",
+        "error_analysis"
+      ],
+      "source_problem_id": "benchmark_problem_0",
+      "split_group": "benchmark_split_0",
+      "task_id": "benchmark_0"
+    },
+    {
+      "adapter_id": "bounded_integer_expression_v1",
+      "adapter_version": "1",
+      "content_fingerprint": "78cb59c173044dfb19defd76654dd53bbbe2a75d5a3a7148b2af34408e39b171",
+      "duplicate_group": "benchmark_dup_1",
+      "group": "final_test",
+      "label_source": "synthetic_fixture",
+      "payload": {
+        "prompt": "Write solve(x, y) to return the larger integer.",
+        "tests": [
+          {
+            "arguments": [
+              2,
+              4
+            ],
+            "expected": 4
+          },
+          {
+            "arguments": [
+              -2,
+              7
+            ],
+            "expected": 7
+          }
+        ]
+      },
+      "skills": [
+        "code_generation",
+        "error_analysis"
+      ],
+      "source_problem_id": "benchmark_problem_1",
+      "split_group": "benchmark_split_1",
+      "task_id": "benchmark_1"
+    }
+  ]
+}
